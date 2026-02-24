@@ -87,17 +87,45 @@ wait_for_port() {
   return 1
 }
 
-stabilize_hive() {
-  rm -rf /var/lib/hive/metastore/metastore_db /metastore_db || true
+hive_ports_ready() {
+  (echo >"/dev/tcp/127.0.0.1/9083") >/dev/null 2>&1 && \
+    (echo >"/dev/tcp/127.0.0.1/10000") >/dev/null 2>&1
+}
 
-  service hive-metastore stop >/dev/null 2>&1 || true
-  service hive-server2 stop >/dev/null 2>&1 || true
+restart_hive_services() {
+  service hive-metastore restart >/dev/null 2>&1 || true
+  service hive-server2 restart >/dev/null 2>&1 || true
+}
 
-  service hive-metastore start >/dev/null 2>&1 || true
-  wait_for_port "127.0.0.1" "9083" 24 || true
+stabilize_runtime() {
+  local attempts=80
+  local i
+  local metastore_reset=0
 
-  service hive-server2 start >/dev/null 2>&1 || true
-  wait_for_port "127.0.0.1" "10000" 24 || true
+  for ((i=1; i<=attempts; i++)); do
+    leave_hdfs_safemode || true
+
+    if hive_ports_ready; then
+      echo "Runtime stabilized: HDFS safemode is off and Hive ports are open."
+      return 0
+    fi
+
+    # Retry service startup while cluster settles.
+    restart_hive_services
+
+    # If metastore keeps failing, reset Derby state once.
+    if [ "$i" -ge 10 ] && [ "$metastore_reset" -eq 0 ] && ! (echo >"/dev/tcp/127.0.0.1/9083") >/dev/null 2>&1; then
+      echo "Resetting Hive metastore Derby state for recovery..."
+      rm -rf /var/lib/hive/metastore/metastore_db /metastore_db || true
+      metastore_reset=1
+      restart_hive_services
+    fi
+
+    sleep 15
+  done
+
+  echo "Warning: runtime stabilization timed out; some services may still be initializing."
+  return 1
 }
 
 bootstrap_ticket() {
@@ -131,9 +159,8 @@ configure_cloudera_manager_start
 
 echo "Starting Cloudera QuickStart on ${HOST_FQDN} with Kerberos realm ${REALM}"
 (
-  sleep 30
-  leave_hdfs_safemode || true
-  stabilize_hive || true
+  sleep 20
+  stabilize_runtime || true
 ) &
 
 exec /usr/bin/docker-quickstart
