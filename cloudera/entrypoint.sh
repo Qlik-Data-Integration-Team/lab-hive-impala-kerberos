@@ -18,19 +18,7 @@ ensure_kerberos_tools() {
   if command -v kinit >/dev/null 2>&1 && command -v klist >/dev/null 2>&1; then
     return 0
   fi
-
-  echo "Kerberos client tools not found. Trying to install..."
-  if command -v yum >/dev/null 2>&1; then
-    yum install -y krb5-workstation || true
-  elif command -v apt-get >/dev/null 2>&1; then
-    apt-get update && apt-get install -y --no-install-recommends krb5-user || true
-  fi
-
-  if command -v kinit >/dev/null 2>&1 && command -v klist >/dev/null 2>&1; then
-    echo "Kerberos client tools installed."
-  else
-    echo "Warning: Kerberos client tools are still unavailable. Validation commands with kinit/klist may fail."
-  fi
+  echo "Warning: Kerberos client tools (kinit/klist) are not present in this image."
 }
 
 prepare_keytabs() {

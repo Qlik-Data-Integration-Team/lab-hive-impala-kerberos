@@ -13,7 +13,7 @@ Este projeto sobe um ambiente com:
 ## Subir o ambiente
 
 ```bash
-docker compose build kdc
+docker compose build kdc kerberos-client
 docker pull withinboredom/cloudera:quickstart
 docker compose up -d
 ```
@@ -22,7 +22,7 @@ Se aparecer `container kdc exited (1)`, limpe estado antigo e suba de novo:
 
 ```bash
 docker compose down -v
-docker compose build --no-cache kdc
+docker compose build --no-cache kdc kerberos-client
 docker compose up -d
 ```
 
@@ -40,11 +40,7 @@ No `docker-compose.yml`, os valores padrão são:
 
 ## Validar Kerberos
 
-Verificar tickets no container Cloudera:
-
-```bash
-docker exec -it cloudera bash -lc "klist"
-```
+O container `cloudera` (imagem QuickStart) pode não ter `kinit/klist`. Para validação, use o container auxiliar `kerberos-client`.
 
 Verificar principals no KDC:
 
@@ -55,19 +51,19 @@ docker exec -it kdc bash -lc "kadmin.local -q 'listprincs'"
 Testar autenticação com usuário:
 
 ```bash
-docker exec -it cloudera bash -lc "echo cloudera123 | kinit cloudera@CLOUDERA.LOCAL && klist"
+docker exec -it kerberos-client bash -lc "echo cloudera123 | kinit cloudera@CLOUDERA.LOCAL && klist"
 ```
 
-Se `klist`/`kinit` não existirem no container `cloudera`, reinicie o serviço para executar a tentativa automática de instalação via `entrypoint`:
+Testar autenticação com admin:
 
 ```bash
-docker compose restart cloudera
+docker exec -it kerberos-client bash -lc "echo admin123 | kinit admin/admin@CLOUDERA.LOCAL && klist"
 ```
 
-Se ainda faltar, instale manualmente:
+Se quiser validar keytabs de serviço:
 
 ```bash
-docker exec -it cloudera bash -lc "yum install -y krb5-workstation || (apt-get update && apt-get install -y --no-install-recommends krb5-user)"
+docker exec -it kerberos-client bash -lc "kinit -kt /keytabs/hdfs.keytab hdfs/quickstart.cloudera.local@CLOUDERA.LOCAL && klist"
 ```
 
 ## Portas expostas
@@ -134,11 +130,4 @@ Depois do reboot:
 ```bash
 docker compose down -v
 docker compose up -d
-```
-
-Se aparecer `klist: command not found` ou `kinit: command not found` no container `cloudera`, use os passos de instalação da seção **Validar Kerberos** e depois rode:
-
-```bash
-docker exec -it cloudera bash -lc "kinit -V cloudera@CLOUDERA.LOCAL"
-docker exec -it cloudera bash -lc "klist"
 ```

@@ -52,6 +52,20 @@ services:
     tty: true
     stdin_open: true
 
+  kerberos-client:
+    build:
+      context: ./kerberos-client
+    container_name: kerberos-client
+    hostname: kerberos-client.cloudera.local
+    depends_on:
+      kdc:
+        condition: service_healthy
+    volumes:
+      - shared-keytabs:/keytabs:ro
+      - ./cloudera/krb5.conf:/etc/krb5.conf:ro
+    tty: true
+    stdin_open: true
+
 volumes:
   kdc-db:
   shared-keytabs:
