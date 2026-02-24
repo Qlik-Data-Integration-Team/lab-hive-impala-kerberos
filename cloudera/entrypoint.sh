@@ -31,6 +31,17 @@ prepare_keytabs() {
   chmod 600 /etc/security/keytabs/*.keytab || true
 }
 
+prepare_hive_runtime() {
+  # Some CDH services reference short host quickstart.cloudera.
+  if ! grep -qE '(^|[[:space:]])quickstart\.cloudera([[:space:]]|$)' /etc/hosts; then
+    echo "127.0.0.1 quickstart.cloudera" >> /etc/hosts
+  fi
+
+  # Derby metastore may default to /metastore_db; pre-create writable paths.
+  mkdir -p /metastore_db /var/lib/hive/metastore_db /tmp/hive
+  chown -R hive:hive /metastore_db /var/lib/hive /tmp/hive 2>/dev/null || true
+}
+
 bootstrap_ticket() {
   if command -v kinit >/dev/null 2>&1; then
     printf '%s\n' "$ADMIN_PW" | kinit "${ADMIN_PRINCIPAL}@${REALM}" || true
@@ -43,6 +54,7 @@ bootstrap_ticket() {
 wait_for_kdc
 ensure_kerberos_tools
 prepare_keytabs
+prepare_hive_runtime
 bootstrap_ticket
 
 echo "Starting Cloudera QuickStart on ${HOST_FQDN} with Kerberos realm ${REALM}"

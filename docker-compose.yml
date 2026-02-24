@@ -41,6 +41,8 @@ services:
       KRB5_ADMIN_PASSWORD: admin123
       KRB5_USER_PASSWORD: cloudera123
       KRB5_SERVICE_PASSWORD: service123
+    extra_hosts:
+      - "quickstart.cloudera:127.0.0.1"
     volumes:
       - shared-keytabs:/keytabs
     ports:

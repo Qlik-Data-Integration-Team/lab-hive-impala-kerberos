@@ -73,6 +73,16 @@ docker exec -it kerberos-client bash -lc "kinit -kt /keytabs/hdfs.keytab hdfs/qu
 - `8020`: NameNode RPC
 - `50070`: NameNode UI
 - `88/tcp+udp`, `749/tcp`: Kerberos
+- `10000`: HiveServer2 (Thrift, opcional)
+- `9083`: Hive Metastore (Thrift, opcional)
+
+Para publicar as portas do Hive no host, adicione no serviço `cloudera`:
+
+```yaml
+ports:
+  - "10000:10000"
+  - "9083:9083"
+```
 
 ## Credenciais padrão
 
@@ -132,3 +142,13 @@ Depois do reboot:
 docker compose down -v
 docker compose up -d
 ```
+
+Se o `hive-server2` não abrir `10000`, valide o log:
+
+```bash
+docker exec -it cloudera bash -lc "tail -n 120 /var/log/hive/hive-server2.log"
+```
+
+Em testes deste ambiente, os erros mais comuns foram:
+- `SafeModeException` no HDFS (NameNode ainda em safe mode no momento do start do HiveServer2).
+- falhas do metastore Derby em `/metastore_db` quando há estado residual de tentativas anteriores.
