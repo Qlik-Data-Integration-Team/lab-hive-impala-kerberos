@@ -1,0 +1,57 @@
+services:
+  kdc:
+    build:
+      context: ./kdc
+    container_name: kdc
+    hostname: kdc.cloudera.local
+    environment:
+      KRB5_REALM: CLOUDERA.LOCAL
+      KRB5_KDC: kdc.cloudera.local
+      KRB5_ADMIN_SERVER: kdc.cloudera.local
+      KRB5_ADMIN_PASSWORD: admin123
+      KRB5_USER_PASSWORD: cloudera123
+      KRB5_SERVICE_PASSWORD: service123
+    volumes:
+      - kdc-db:/var/lib/krb5kdc
+      - shared-keytabs:/keytabs
+    ports:
+      - "88:88"
+      - "88:88/udp"
+      - "749:749"
+    healthcheck:
+      test: ["CMD-SHELL", "kadmin.local -q 'listprincs' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  cloudera:
+    image: withinboredom/cloudera:quickstart
+    container_name: cloudera
+    hostname: quickstart.cloudera.local
+    depends_on:
+      kdc:
+        condition: service_healthy
+    environment:
+      KRB5_REALM: CLOUDERA.LOCAL
+      KRB5_KDC: kdc.cloudera.local
+      KRB5_ADMIN_SERVER: kdc.cloudera.local
+      KRB5_ADMIN_PRINCIPAL: admin/admin
+      KRB5_ADMIN_PASSWORD: admin123
+      KRB5_USER_PASSWORD: cloudera123
+      KRB5_SERVICE_PASSWORD: service123
+    volumes:
+      - shared-keytabs:/keytabs
+      - ./cloudera/krb5.conf:/etc/krb5.conf:ro
+      - ./cloudera/entrypoint.sh:/entrypoint.sh:ro
+    ports:
+      - "7180:7180"
+      - "8888:8888"
+      - "8020:8020"
+      - "50070:50070"
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    tty: true
+    stdin_open: true
+
+volumes:
+  kdc-db:
+  shared-keytabs:
