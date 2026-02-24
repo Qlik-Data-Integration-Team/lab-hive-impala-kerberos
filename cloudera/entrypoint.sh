@@ -133,6 +133,10 @@ hive_ports_ready() {
     (echo >"/dev/tcp/127.0.0.1/10000") >/dev/null 2>&1
 }
 
+hdfs_rpc_ready() {
+  (echo >"/dev/tcp/127.0.0.1/8020") >/dev/null 2>&1
+}
+
 cleanup_stale_pidfile() {
   local pidfile="$1"
   local pid
@@ -157,6 +161,7 @@ cleanup_hive_metastore_pidfiles() {
 }
 
 restart_hive_services() {
+  hdfs_rpc_ready || return 0
   cleanup_hive_metastore_pidfiles
   service hive-metastore restart >/dev/null 2>&1 || true
   service hive-server2 restart >/dev/null 2>&1 || true
@@ -166,20 +171,32 @@ stabilize_runtime() {
   local attempts=80
   local i
   local metastore_reset=0
+  local hdfs_waited=0
 
   for ((i=1; i<=attempts; i++)); do
-    leave_hdfs_safemode || true
+    if hdfs_rpc_ready; then
+      leave_hdfs_safemode || true
+      hdfs_waited=1
+    elif [ "$hdfs_waited" -eq 0 ]; then
+      echo "Waiting for NameNode RPC on 127.0.0.1:8020 before restarting Hive..."
+      wait_for_port 127.0.0.1 8020 24 || true
+      hdfs_waited=1
+      sleep 5
+      continue
+    fi
 
     if hive_ports_ready; then
       echo "Runtime stabilized: HDFS safemode is off and Hive ports are open."
       return 0
     fi
 
-    # Retry service startup while cluster settles.
-    restart_hive_services
+    # Retry Hive startup only after HDFS RPC is reachable.
+    if hdfs_rpc_ready; then
+      restart_hive_services
+    fi
 
     # If metastore keeps failing, reset Derby state once.
-    if [ "$i" -ge 10 ] && [ "$metastore_reset" -eq 0 ] && ! (echo >"/dev/tcp/127.0.0.1/9083") >/dev/null 2>&1; then
+    if [ "$i" -ge 10 ] && [ "$metastore_reset" -eq 0 ] && hdfs_rpc_ready && ! (echo >"/dev/tcp/127.0.0.1/9083") >/dev/null 2>&1; then
       echo "Resetting Hive metastore Derby state for recovery..."
       rm -rf /var/lib/hive/metastore/metastore_db /metastore_db || true
       metastore_reset=1
