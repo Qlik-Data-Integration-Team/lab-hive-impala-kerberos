@@ -109,11 +109,25 @@ bootstrap_ticket() {
   fi
 }
 
+configure_cloudera_manager_start() {
+  local defaults="/etc/default/cloudera-scm-server"
+  [ -f "$defaults" ] || return 0
+
+  # In containers, su-based launch may fail with "could not open session".
+  # Force init script to start cmf-server directly.
+  if grep -q "^CMF_SUDO_CMD=" "$defaults"; then
+    sed -i 's/^CMF_SUDO_CMD=.*/CMF_SUDO_CMD=" "/' "$defaults"
+  else
+    printf '\nCMF_SUDO_CMD=" "\n' >> "$defaults"
+  fi
+}
+
 wait_for_kdc
 ensure_kerberos_tools
 prepare_keytabs
 prepare_hive_runtime
 bootstrap_ticket
+configure_cloudera_manager_start
 
 echo "Starting Cloudera QuickStart on ${HOST_FQDN} with Kerberos realm ${REALM}"
 (
