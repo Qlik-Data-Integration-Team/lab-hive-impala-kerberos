@@ -26,6 +26,36 @@ docker compose build --no-cache kdc cloudera kerberos-client
 docker compose up -d
 ```
 
+## Checklist pós-subida (executar em sequência)
+
+1. Confirmar containers em execução:
+
+```bash
+docker compose ps
+```
+
+2. Validar Kerberos (KDC e autenticação):
+
+```bash
+docker exec -it kdc bash -lc "kadmin.local -q 'listprincs'"
+docker exec -it kerberos-client bash -lc "echo cloudera123 | kinit cloudera@CLOUDERA.LOCAL && klist"
+docker exec -it kerberos-client bash -lc "echo admin123 | kinit admin/admin@CLOUDERA.LOCAL && klist"
+```
+
+3. Validar Hive (status + portas + query):
+
+```bash
+docker exec -it cloudera bash -lc "service hive-metastore status; service hive-server2 status"
+docker exec -it cloudera bash -lc "ss -lnt | grep 9083; ss -lnt | grep 10000"
+docker exec -it cloudera bash -lc "beeline -u 'jdbc:hive2://127.0.0.1:10000/default' -n cloudera -p cloudera123 -e 'show databases;'"
+```
+
+4. Se a porta `10000` não subir, checar log do HiveServer2:
+
+```bash
+docker exec -it cloudera bash -lc "tail -n 120 /var/log/hive/hive-server2.log"
+```
+
 ## Variáveis de ambiente usadas
 
 No `docker-compose.yml`, os valores padrão são:
@@ -37,35 +67,6 @@ No `docker-compose.yml`, os valores padrão são:
 - `KRB5_ADMIN_PASSWORD=admin123`
 - `KRB5_USER_PASSWORD=cloudera123`
 - `KRB5_SERVICE_PASSWORD=service123` (definida no compose; atualmente não é consumida pelos scripts)
-
-## Validar Kerberos
-
-O serviço `cloudera` agora é uma imagem derivada local de `withinboredom/cloudera:quickstart` (com `krb5.conf` e `entrypoint` versionados no projeto).
-Como a base é legacy (CentOS 6), use o `kerberos-client` para validações com `kinit`/`klist`.
-
-Verificar principals no KDC:
-
-```bash
-docker exec -it kdc bash -lc "kadmin.local -q 'listprincs'"
-```
-
-Testar autenticação com usuário:
-
-```bash
-docker exec -it kerberos-client bash -lc "echo cloudera123 | kinit cloudera@CLOUDERA.LOCAL && klist"
-```
-
-Testar autenticação com admin:
-
-```bash
-docker exec -it kerberos-client bash -lc "echo admin123 | kinit admin/admin@CLOUDERA.LOCAL && klist"
-```
-
-Se quiser validar keytabs de serviço:
-
-```bash
-docker exec -it kerberos-client bash -lc "kinit -kt /keytabs/hdfs.keytab hdfs/quickstart.cloudera.local@CLOUDERA.LOCAL && klist"
-```
 
 ## Portas expostas
 
@@ -134,21 +135,6 @@ Depois do reboot:
 ```bash
 docker compose down -v
 docker compose up -d
-```
-
-Validação completa do Hive:
-
-```bash
-docker exec -it cloudera bash -lc "service hive-metastore status; service hive-server2 status"
-docker exec -it cloudera bash -lc "beeline -u 'jdbc:hive2://127.0.0.1:10000/default' -n cloudera -p cloudera123 -e 'show databases;'"
-```
-
-Nota: nesta imagem legada, `service hive-metastore status` pode reportar `FAILED` mesmo com o processo ativo. Use `ss -lnt | grep 9083` e a query via `beeline` como validação final.
-
-Se o `hive-server2` não abrir `10000`, valide o log:
-
-```bash
-docker exec -it cloudera bash -lc "tail -n 120 /var/log/hive/hive-server2.log"
 ```
 
 Em testes deste ambiente, os erros mais comuns foram:
