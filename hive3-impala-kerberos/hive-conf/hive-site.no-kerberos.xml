@@ -40,7 +40,7 @@
   </property>
   <property>
     <name>hive.server2.authentication</name>
-    <value>NONE</value>
+    <value>NOSASL</value>
   </property>
   <property>
     <name>hive.server2.enable.doAs</name>

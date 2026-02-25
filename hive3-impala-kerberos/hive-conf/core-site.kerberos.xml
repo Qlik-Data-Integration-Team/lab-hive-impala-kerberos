@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<configuration>
+  <!-- Isolated HS2 Kerberos mode: avoid coupling with non-kerberized HDFS -->
+  <property>
+    <name>fs.defaultFS</name>
+    <value>file:///</value>
+  </property>
+  <property>
+    <name>hadoop.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.hive.hosts</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.hive.groups</name>
+    <value>*</value>
+  </property>
+</configuration>

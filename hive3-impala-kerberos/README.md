@@ -64,7 +64,8 @@ Realm: `EXAMPLE.COM`
 - admin: `admin/admin@EXAMPLE.COM` senha `admin123`
 - usuário Talend: `talend@EXAMPLE.COM` senha `talend123`
 - serviço Hive: `hive/localhost@EXAMPLE.COM`
-- serviço Impala: `impala/localhost@EXAMPLE.COM`
+- serviço Impala (cliente): `impala/impala.hadoop.local@EXAMPLE.COM`
+- serviço Impala (interno): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
 
 ## 5) Health-check rápido
 
@@ -187,7 +188,7 @@ jdbc:impala://localhost:21051/default;AuthMech=0
 Impala com Kerberos:
 
 ```text
-jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=localhost;KrbServiceName=impala
+jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
 ## 9) Troubleshooting rápido

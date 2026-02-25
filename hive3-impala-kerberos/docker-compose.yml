@@ -153,6 +153,9 @@ services:
         -Djavax.jdo.option.ConnectionUserName=hive
         -Djavax.jdo.option.ConnectionPassword=hive123
         -Dhive.metastore.uris=thrift://hive-metastore:9083
+        -Dhadoop.security.authentication=kerberos
+        -Dfs.defaultFS=file:///
+        -Dhive.exec.scratchdir=file:///tmp/hive
       HIVE_CUSTOM_CONF_DIR: /hive_custom_conf
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
@@ -182,14 +185,24 @@ services:
         -Djavax.jdo.option.ConnectionUserName=hive
         -Djavax.jdo.option.ConnectionPassword=hive123
         -Dhive.metastore.uris=thrift://hive-metastore:9083
+        -Dmetastore.event.db.notification.api.auth=false
+        -Dhive.metastore.event.db.notification.api.auth=false
       HIVE_CUSTOM_CONF_DIR: /hive_custom_conf
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
+      - ./hive-conf/core-site.kerberos.xml:/hive_custom_conf/core-site.xml:ro
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
     ports:
       - "10000:10000"
       - "10002:10002"
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        mkdir -p /tmp/hive
+        chmod 1777 /tmp/hive
+        exec /entrypoint.sh
 
   hive-server2-open:
     image: apache/hive:3.1.3
@@ -214,6 +227,13 @@ services:
     ports:
       - "10001:10000"
       - "10003:10002"
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        mkdir -p /tmp/hive
+        chmod 1777 /tmp/hive
+        exec /entrypoint.sh
 
   impala-statestored:
     image: apache/impala:4.5.0-statestored
@@ -227,8 +247,8 @@ services:
       - -log_dir=/opt/impala/logs
       - -hostname=localhost
       - -use_resolved_hostname=true
-      - -principal=impala/localhost@EXAMPLE.COM
-      - -be_principal=impala/localhost@EXAMPLE.COM
+      - -principal=impala/impala-statestored@EXAMPLE.COM
+      - -be_principal=impala/impala-statestored@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -255,10 +275,10 @@ services:
       - -abort_on_config_error=false
       - -state_store_host=impala-statestored
       - -catalog_topic_mode=minimal
-      - -hms_event_polling_interval_s=5
+      - -hms_event_polling_interval_s=0
       - -use_resolved_hostname=true
-      - -principal=impala/localhost@EXAMPLE.COM
-      - -be_principal=impala/localhost@EXAMPLE.COM
+      - -principal=impala/impala-catalogd@EXAMPLE.COM
+      - -be_principal=impala/impala-catalogd@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -294,8 +314,8 @@ services:
       - -mem_limit_includes_jvm=true
       - -use_local_catalog=true
       - -use_resolved_hostname=true
-      - -principal=impala/localhost@EXAMPLE.COM
-      - -be_principal=impala/localhost@EXAMPLE.COM
+      - -principal=impala/impala.hadoop.local@EXAMPLE.COM
+      - -be_principal=impala/impala.hadoop.local@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -338,7 +358,7 @@ services:
       - -abort_on_config_error=false
       - -state_store_host=impala-statestored-open
       - -catalog_topic_mode=minimal
-      - -hms_event_polling_interval_s=5
+      - -hms_event_polling_interval_s=0
       - -use_resolved_hostname=true
       - -skip_internal_kerberos_auth=true
       - -skip_external_kerberos_auth=true

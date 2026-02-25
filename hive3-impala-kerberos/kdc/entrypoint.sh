@@ -18,16 +18,22 @@ fi
 kadmin.local -q "addprinc -pw ${ADMIN_PW} admin/admin@${REALM}" || true
 kadmin.local -q "addprinc -pw ${TALEND_PW} talend@${REALM}" || true
 
-# Service principals for HiveServer2 and Impala. Using localhost principal makes
-# host-side clients (Talend) simpler when connecting to localhost ports.
+# Service principals for HiveServer2 and Impala.
 kadmin.local -q "addprinc -randkey hive/localhost@${REALM}" || true
-kadmin.local -q "addprinc -randkey impala/localhost@${REALM}" || true
 kadmin.local -q "addprinc -randkey HTTP/localhost@${REALM}" || true
+
+# Impala uses host-based service principals for internal RPCs. Include internal
+# service hosts plus localhost (for host-side client tests).
+for host in localhost impala-statestored impala-catalogd impala.hadoop.local; do
+  kadmin.local -q "addprinc -randkey impala/${host}@${REALM}" || true
+done
 
 mkdir -p /keytabs
 kadmin.local -q "ktadd -k /keytabs/hive.service.keytab hive/localhost@${REALM}"
-kadmin.local -q "ktadd -k /keytabs/impala.service.keytab impala/localhost@${REALM}"
 kadmin.local -q "ktadd -k /keytabs/http.service.keytab HTTP/localhost@${REALM}"
+for host in localhost impala-statestored impala-catalogd impala.hadoop.local; do
+  kadmin.local -q "ktadd -k /keytabs/impala.service.keytab impala/${host}@${REALM}"
+done
 
 # Optional client keytab for scripted tests.
 kadmin.local -q "ktadd -k /keytabs/talend.user.keytab talend@${REALM}"

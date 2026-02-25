@@ -29,6 +29,14 @@
     <name>hive.metastore.schema.verification</name>
     <value>false</value>
   </property>
+  <property>
+    <name>metastore.event.db.notification.api.auth</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>metastore.metastore.event.db.notification.api.auth</name>
+    <value>false</value>
+  </property>
 
   <property>
     <name>hive.server2.transport.mode</name>
@@ -53,6 +61,14 @@
   <property>
     <name>hive.server2.enable.doAs</name>
     <value>false</value>
+  </property>
+  <property>
+    <name>hive.exec.scratchdir</name>
+    <value>file:///tmp/hive</value>
+  </property>
+  <property>
+    <name>hive.exec.local.scratchdir</name>
+    <value>/tmp/hive</value>
   </property>
 
   <property>
