@@ -123,7 +123,8 @@ services:
       - -lc
       - |
         set -e
-        export PATH="/opt/hadoop-3.2.1/bin:${PATH}"
+        # Preserve the container PATH; using ${PATH} here makes Compose inject the host PATH.
+        export PATH="/opt/hadoop-3.2.1/bin:$${PATH}"
         for i in $(seq 1 40); do
           hdfs dfs -test -e / && break
           echo "Waiting for HDFS..."
