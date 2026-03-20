@@ -227,8 +227,8 @@ jdbc:hive2://localhost:10001/default;auth=LDAP
 
 Before connecting on Windows:
 
-1. copy [talend.user.keytab](/opt/cloudera-kerberos/talend.user.keytab) to the Windows machine, for example `C:\Users\<YOUR_USER>\talend.user.keytab`
-2. copy [examples/windows/krb5.ini](/opt/cloudera-kerberos/examples/windows/krb5.ini) to `C:\Windows\krb5.ini`, or point `KRB5_CONFIG` to another path
+1. copy `./talend.user.keytab` to the Windows machine, for example `C:\Users\<YOUR_USER>\talend.user.keytab`
+2. copy [examples/windows/krb5.ini](./examples/windows/krb5.ini) to `C:\Windows\krb5.ini`, or point `KRB5_CONFIG` to another path
 3. confirm that `kinit` and `klist` point to the correct Kerberos client:
 
 ```bat
