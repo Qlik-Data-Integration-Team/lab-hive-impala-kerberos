@@ -7,9 +7,10 @@ Idiomas:
 
 Entorno local completo para pruebas con Talend y JDBC, con ambos modos activos al mismo tiempo:
 
-- Hive 3.1.3 con endpoint Kerberos y endpoint sin Kerberos
-- Impala 4.5.0 con endpoint Kerberos y endpoint sin Kerberos
+- Hive 3.1.3 con endpoint Kerberos y endpoint LDAP con usuario/contraseña
+- Impala 4.5.0 con endpoint Kerberos y endpoint LDAP con usuario/contraseña
 - KDC MIT Kerberos local (`EXAMPLE.COM`)
+- OpenLDAP local para autenticación simple del laboratorio
 - HDFS + YARN
 - PostgreSQL para Hive Metastore
 
@@ -22,6 +23,20 @@ Entorno local completo para pruebas con Talend y JDBC, con ambos modos activos a
   - keytab del usuario de prueba (`talend.user.keytab`)
 
 ## 2) Levantar entorno desde cero
+
+Scripts de conveniencia en la raíz:
+
+```bash
+./up.sh
+./recreate.sh
+./down.sh
+./ps.sh
+./logs.sh
+./logs.sh hive-server2
+./test.sh
+```
+
+Equivalentes directos:
 
 ```bash
 cd /opt/cloudera-kerberos
@@ -53,14 +68,14 @@ Infra:
 HiveServer2:
 
 - `10000`: Hive con Kerberos
-- `10001`: Hive sin Kerberos (`noSasl`)
+- `10001`: Hive con usuario/contraseña vía LDAP
 
 Impala:
 
 - `21050`: Impala con Kerberos (HS2)
-- `21051`: Impala sin Kerberos (HS2)
+- `21051`: Impala con usuario/contraseña vía LDAP (HS2)
 - `25000`: UI Kerberos
-- `25001`: UI sin Kerberos
+- `25001`: UI LDAP
 
 ## 4) Principals y credenciales del laboratorio
 
@@ -68,6 +83,7 @@ Realm: `EXAMPLE.COM`
 
 - admin: `admin/admin@EXAMPLE.COM` contraseña `admin123`
 - usuario Talend: `talend@EXAMPLE.COM` contraseña `talend123`
+- usuario LDAP: `admin` contraseña `Admin123$`
 - servicio Hive: `hive/localhost@EXAMPLE.COM`
 - servicio Impala (cliente): `impala/impala.hadoop.local@EXAMPLE.COM`
 - servicio Impala (interno): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
@@ -75,18 +91,19 @@ Realm: `EXAMPLE.COM`
 ## 5) Health-check rápido
 
 ```bash
-docker compose ps -a
+./ps.sh
 ```
 
 Smoke test automatizado:
 
 ```bash
-./scripts/smoke-test.sh
+./test.sh
 ```
 
 Esperado:
 
 - `hb-kdc`: `healthy`
+- `hb-openldap`: `healthy`
 - `hb-postgres`: `healthy`
 - `hb-hdfs-init`: `Exited (0)`
 - `hb-hive-metastore`: `healthy`
@@ -104,7 +121,7 @@ nc -zv localhost 21050
 nc -zv localhost 21051
 ```
 
-## 6) Talend - conexión sin Kerberos (primera prueba)
+## 6) Talend - conexión con usuario/contraseña (primera prueba)
 
 En el asistente de conexión Hive (Repository):
 
@@ -114,9 +131,9 @@ En el asistente de conexión Hive (Repository):
 - `Server`: `localhost`
 - `Port`: `10001`
 - `DataBase`: `default`
-- `Login`: vacío
-- `Password`: vacío
-- `Additional JDBC Settings`: `auth=noSasl`
+- `Login`: `admin`
+- `Password`: `Admin123$`
+- `Additional JDBC Settings`: `auth=LDAP`
 
 Nota: en algunas versiones de Talend, `String of Connection` es solo lectura. En ese caso, usa siempre `Additional JDBC Settings` para inyectar parámetros JDBC.
 
@@ -176,12 +193,96 @@ Equivale a:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-## 8) JDBC de referencia
+## 8) DBeaver
 
-Hive sin Kerberos:
+### 8.1 Hive con usuario/contraseña
+
+En DBeaver:
+
+- `Driver`: `Apache Hive`
+- `Host`: `localhost`
+- `Port`: `10001`
+- `Database`: `default`
+- `User name`: `admin`
+- `Password`: `Admin123$`
+
+URL JDBC de referencia:
 
 ```text
-jdbc:hive2://localhost:10001/default;auth=noSasl
+jdbc:hive2://localhost:10001/default;auth=LDAP
+```
+
+### 8.2 Hive con Kerberos
+
+Antes de conectar, genera un ticket Kerberos en el cliente:
+
+```bash
+kinit -k -t /ruta/al/talend.user.keytab talend@EXAMPLE.COM
+klist
+```
+
+En DBeaver:
+
+- `Driver`: `Apache Hive`
+- `Host`: `localhost`
+- `Port`: `10000`
+- `Database`: `default`
+- `User name`: vacío
+- `Password`: vacío
+
+URL JDBC de referencia:
+
+```text
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+```
+
+### 8.3 Impala con usuario/contraseña
+
+En DBeaver:
+
+- `Driver`: `Apache Impala`
+- `Host`: `localhost`
+- `Port`: `21051`
+- `Database`: `default`
+- `User name`: `admin`
+- `Password`: `Admin123$`
+
+URL JDBC de referencia:
+
+```text
+jdbc:impala://localhost:21051/default;AuthMech=3;UID=admin;PWD=Admin123$
+```
+
+### 8.4 Impala con Kerberos
+
+Antes de conectar, genera un ticket Kerberos en el cliente:
+
+```bash
+kinit -k -t /ruta/al/talend.user.keytab talend@EXAMPLE.COM
+klist
+```
+
+En DBeaver:
+
+- `Driver`: `Apache Impala`
+- `Host`: `localhost`
+- `Port`: `21050`
+- `Database`: `default`
+- `User name`: vacío
+- `Password`: vacío
+
+URL JDBC de referencia:
+
+```text
+jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
+```
+
+## 9) JDBC de referencia
+
+Hive con usuario/contraseña:
+
+```text
+jdbc:hive2://localhost:10001/default;auth=LDAP
 ```
 
 Hive con Kerberos:
@@ -190,10 +291,10 @@ Hive con Kerberos:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-Impala sin Kerberos:
+Impala con usuario/contraseña:
 
 ```text
-jdbc:impala://localhost:21051/default;AuthMech=0
+jdbc:impala://localhost:21051/default;AuthMech=3;UID=admin;PWD=Admin123$
 ```
 
 Impala con Kerberos:
@@ -202,7 +303,7 @@ Impala con Kerberos:
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
-## 9) Troubleshooting rápido
+## 10) Troubleshooting rápido
 
 Error de handshake/transport en Talend:
 
@@ -235,7 +336,7 @@ Si quieres validar todo automáticamente después de cambios:
 ./scripts/smoke-test.sh
 ```
 
-## 10) Logs útiles
+## 11) Logs útiles
 
 ```bash
 docker logs -f hb-kdc

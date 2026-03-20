@@ -41,6 +41,28 @@ services:
       timeout: 5s
       retries: 10
 
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: hb-openldap
+    hostname: openldap.hadoop.local
+    environment:
+      LDAP_ORGANISATION: Example Lab
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: admin123
+      LDAP_TLS: "false"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "false"
+    volumes:
+      - ./ldap/bootstrap:/container/service/slapd/assets/config/bootstrap/ldif/custom
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ldapsearch -x -H ldap://127.0.0.1:389 -D 'cn=admin,dc=example,dc=com' -w admin123 -b 'dc=example,dc=com' '(uid=qlik)' uid >/dev/null 2>&1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: hb-namenode
@@ -213,6 +235,8 @@ services:
     depends_on:
       hive-metastore:
         condition: service_healthy
+      openldap:
+        condition: service_healthy
     environment:
       SERVICE_NAME: hiveserver2
       IS_RESUME: "true"
@@ -225,7 +249,7 @@ services:
       HIVE_CUSTOM_CONF_DIR: /hive_custom_conf
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
-      - ./hive-conf/hive-site.no-kerberos.xml:/hive_custom_conf/hive-site.xml:ro
+      - ./hive-conf/hive-site.ldap.xml:/hive_custom_conf/hive-site.xml:ro
     ports:
       - "10001:10000"
       - "10003:10002"
@@ -380,6 +404,8 @@ services:
         condition: service_started
       namenode:
         condition: service_started
+      openldap:
+        condition: service_healthy
     command:
       - /opt/impala/bin/impalad
       - -log_dir=/opt/impala/logs
@@ -391,7 +417,11 @@ services:
       - -use_local_catalog=true
       - -use_resolved_hostname=true
       - -skip_internal_kerberos_auth=true
-      - -skip_external_kerberos_auth=true
+      - -skip_external_kerberos_auth=false
+      - -enable_ldap_auth=true
+      - -ldap_uri=ldap://openldap:389
+      - -ldap_bind_pattern=uid=#UID,ou=people,dc=example,dc=com
+      - -ldap_passwords_in_clear_ok=true
       - -server_name=impalaopen
     volumes:
       - ./hive-conf/core-site.xml:/opt/impala/conf/core-site.xml:ro

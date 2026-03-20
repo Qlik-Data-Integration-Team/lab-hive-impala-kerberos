@@ -1,0 +1,27 @@
+dn: ou=people,dc=example,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=admin,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+cn: admin
+sn: admin
+uid: admin
+uidNumber: 10000
+gidNumber: 10000
+homeDirectory: /home/qlik
+loginShell: /bin/bash
+mail: admin@example.com
+userPassword: Admin123$
+
+dn: cn=admin,ou=groups,dc=example,dc=com
+objectClass: posixGroup
+cn: admin
+gidNumber: 10000
+memberUid: admin
