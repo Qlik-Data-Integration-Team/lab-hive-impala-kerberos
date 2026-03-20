@@ -1,147 +1,247 @@
-# Cloudera + Kerberos in Docker
+# Hive 3 + Impala Dual-Mode (Kerberos + Open)
 
 Languages:
 - [Portuguese](README.md)
 - English (this file)
 - [Spanish (Mexico)](README.es-MX.md)
 
-This project brings up an environment with:
+Complete local environment for Talend and JDBC tests, with both modes active at the same time:
 
-- `kdc`: MIT Kerberos server (realm `CLOUDERA.LOCAL`)
-- `cloudera`: Cloudera QuickStart node integrated with KDC
-- `kerberos-client`: helper client for `kinit`/`klist` checks without relying on the QuickStart legacy image
+- Hive 3.1.3 with Kerberos endpoint and non-Kerberos endpoint
+- Impala 4.5.0 with Kerberos endpoint and non-Kerberos endpoint
+- Local MIT Kerberos KDC (`EXAMPLE.COM`)
+- HDFS + YARN
+- PostgreSQL for Hive Metastore
 
-## Prerequisites
+## 1) Prerequisites
 
-- Docker
-- Docker Compose v2
+- Docker + Docker Compose
+- For Kerberos tests on Windows:
+  - Java `kinit`/`klist` (not Windows AD `klist`)
+  - `krb5.ini` file
+  - test user keytab (`talend.user.keytab`)
 
-## Start the environment
+## 2) Start environment from scratch
 
 ```bash
-docker compose build kdc cloudera kerberos-client
-docker compose up -d
+cd /opt/cloudera-kerberos
+docker compose down -v --remove-orphans
+docker compose up -d --build
+docker compose ps -a
 ```
 
-If you see `container kdc exited (1)`, clean old state and start again:
+If you only want to restart without deleting data:
 
 ```bash
-docker compose down -v
-docker compose build --no-cache kdc cloudera kerberos-client
 docker compose up -d
-```
-
-## Post-start checklist (run in order)
-
-1. Confirm containers are running:
-
-```bash
 docker compose ps
 ```
 
-2. Validate Kerberos (KDC and authentication):
+## 3) Ports and endpoints
+
+Infra:
+
+- `88/tcp` + `88/udp`: KDC
+- `749/tcp`: kadmin
+- `9870`: NameNode UI
+- `8020`: HDFS RPC
+- `8088`: YARN UI
+- `19888`: JobHistory UI
+- `9083`: Hive Metastore
+- `5433`: PostgreSQL metastore
+
+HiveServer2:
+
+- `10000`: Hive with Kerberos
+- `10001`: Hive without Kerberos (`noSasl`)
+
+Impala:
+
+- `21050`: Impala with Kerberos (HS2)
+- `21051`: Impala without Kerberos (HS2)
+- `25000`: Kerberos UI
+- `25001`: non-Kerberos UI
+
+## 4) Lab principals and credentials
+
+Realm: `EXAMPLE.COM`
+
+- admin: `admin/admin@EXAMPLE.COM` password `admin123`
+- Talend user: `talend@EXAMPLE.COM` password `talend123`
+- Hive service: `hive/localhost@EXAMPLE.COM`
+- Impala service (client): `impala/impala.hadoop.local@EXAMPLE.COM`
+- Impala service (internal): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
+
+## 5) Quick health check
 
 ```bash
-docker exec -it kdc bash -lc "kadmin.local -q 'listprincs'"
-docker exec -it kerberos-client bash -lc "echo cloudera123 | kinit cloudera@CLOUDERA.LOCAL && klist"
-docker exec -it kerberos-client bash -lc "echo admin123 | kinit admin/admin@CLOUDERA.LOCAL && klist"
+docker compose ps -a
 ```
 
-3. Validate Hive (status + ports + query):
+Automated smoke test:
 
 ```bash
-docker exec -it cloudera bash -lc "service hive-metastore status; service hive-server2 status"
-docker exec -it cloudera bash -lc "ss -lnt | grep 9083; ss -lnt | grep 10000"
-docker exec -it cloudera bash -lc "beeline -u 'jdbc:hive2://127.0.0.1:10000/default' -n cloudera -p cloudera123 -e 'show databases;'"
+./scripts/smoke-test.sh
 ```
 
-4. If port `10000` does not come up, check HiveServer2 log:
+Expected:
+
+- `hb-kdc`: `healthy`
+- `hb-postgres`: `healthy`
+- `hb-hdfs-init`: `Exited (0)`
+- `hb-hive-metastore`: `healthy`
+- `hb-hive-server2`: `Up`
+- `hb-hive-server2-open`: `Up`
+- `hb-impala-daemon`: `Up`
+- `hb-impala-daemon-open`: `Up`
+
+Port checks:
 
 ```bash
-docker exec -it cloudera bash -lc "tail -n 120 /var/log/hive/hive-server2.log"
+nc -zv localhost 10000
+nc -zv localhost 10001
+nc -zv localhost 21050
+nc -zv localhost 21051
 ```
 
-## Environment variables used
+## 6) Talend - non-Kerberos connection (first test)
 
-In `docker-compose.yml`, default values are:
+In Hive connection wizard (Repository):
 
-- `KRB5_REALM=CLOUDERA.LOCAL`
-- `KRB5_KDC=kdc.cloudera.local`
-- `KRB5_ADMIN_SERVER=kdc.cloudera.local`
-- `KRB5_ADMIN_PRINCIPAL=admin/admin` (in `cloudera` container)
-- `KRB5_ADMIN_PASSWORD=admin123`
-- `KRB5_USER_PASSWORD=cloudera123`
-- `KRB5_SERVICE_PASSWORD=service123` (set in compose; currently not consumed by scripts)
+- `Connection Mode`: `Standalone`
+- `Hive Version`: `Hive 2`
+- `Hadoop Version`: `Hadoop 3`
+- `Server`: `localhost`
+- `Port`: `10001`
+- `DataBase`: `default`
+- `Login`: empty
+- `Password`: empty
+- `Additional JDBC Settings`: `auth=noSasl`
 
-## Exposed ports
+Note: in some Talend versions, `String of Connection` is read-only. In that case, always use `Additional JDBC Settings` to inject JDBC parameters.
 
-- `7180`: Cloudera Manager
-- `8888`: Hue
-- `8020`: NameNode RPC
-- `50070`: NameNode UI
-- `88/tcp+udp`, `749/tcp`: Kerberos
-- `10000`: HiveServer2 (Thrift)
-- `9083`: Hive Metastore (Thrift)
+## 7) Talend - Kerberos connection (Hive)
 
-## Default credentials
+### 7.1 Prepare `krb5.ini` on Windows
 
-- Kerberos admin: `admin/admin@CLOUDERA.LOCAL` / `admin123`
-- Kerberos user: `cloudera@CLOUDERA.LOCAL` / `cloudera123`
+Example file:
 
-## Notes
+- [examples/windows/krb5.ini](./examples/windows/krb5.ini)
 
-- The official `cloudera/quickstart` image uses a legacy manifest format and often fails on modern Docker.
-- This project uses a local image derived from `withinboredom/cloudera:quickstart`.
-- Kerberos checks are done in `kerberos-client` to avoid package dependencies in the QuickStart legacy image.
+Use one option:
 
-## Troubleshooting
+- copy to `C:\Windows\krb5.ini` (default), or
+- set `KRB5_CONFIG` variable pointing to another path.
 
-If `cloudera` container exits with `Exit 139` and no logs, it is usually host/kernel incompatibility with `withinboredom/cloudera:quickstart` (commonly missing `vsyscall=emulate` at boot).
+### 7.2 Ensure keytab on Windows
 
-Quick test:
+Copy keytab generated in KDC container:
 
 ```bash
-docker run --rm withinboredom/cloudera:quickstart /bin/bash -lc "echo ok"
+cd /opt/cloudera-kerberos
+docker cp hb-kdc:/keytabs/talend.user.keytab /tmp/talend.user.keytab
 ```
 
-If it returns `139`, enable `vsyscall=emulate` on host and reboot.
+Then copy `/tmp/talend.user.keytab` to Windows, for example:
 
-Example on RHEL/CentOS:
+- `C:\Users\<YOUR_USER>\talend.user.keytab`
+
+### 7.3 Generate Kerberos ticket on Windows
+
+In `cmd.exe`:
+
+```bat
+set KRB5_CONFIG=C:\Windows\krb5.ini
+set PATH=D:\portable\java\bin;%PATH%
+kinit -k -t C:\Users\<YOUR_USER>\talend.user.keytab talend@EXAMPLE.COM
+klist
+```
+
+Expected in Java `klist`: default principal `talend@EXAMPLE.COM`.
+
+### 7.4 Configure in Talend (without “Use Kerberos authentication” checkbox)
+
+If the screen does not show Kerberos checkbox and URL is locked, use:
+
+- `Server`: `localhost`
+- `Port`: `10000`
+- `DataBase`: `default`
+- `Login`: empty
+- `Password`: empty
+- `Additional JDBC Settings`: `auth=kerberos;principal=hive/localhost@EXAMPLE.COM`
+
+Equivalent to:
+
+```text
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+```
+
+## 8) Reference JDBC
+
+Hive without Kerberos:
+
+```text
+jdbc:hive2://localhost:10001/default;auth=noSasl
+```
+
+Hive with Kerberos:
+
+```text
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+```
+
+Impala without Kerberos:
+
+```text
+jdbc:impala://localhost:21051/default;AuthMech=0
+```
+
+Impala with Kerberos:
+
+```text
+jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
+```
+
+## 9) Quick troubleshooting
+
+Handshake/transport error in Talend:
+
+- confirm correct port (`10001` non-Kerberos, `10000` Kerberos)
+- confirm `Additional JDBC Settings`
+- check whether Hive/Impala JDBC driver is installed in Talend
+
+`kinit` authenticating against corporate AD instead of `EXAMPLE.COM`:
+
+- adjust `PATH` to use Java `kinit`/`klist`
+- validate with `where kinit` and `where klist`
+
+`PortUnreachableException` in `kinit`:
+
+- Docker/KDC is not reachable from Windows machine
+- confirm `docker compose ps` and `88/udp` and `88/tcp` ports published
+
+Environment unstable after many tests:
 
 ```bash
-sudo grubby --args="vsyscall=emulate" --update-kernel=ALL
-sudo reboot
+cd /opt/cloudera-kerberos
+docker compose down -v --remove-orphans
+docker compose up -d --build
+docker compose ps -a
 ```
 
-Example on WSL2 (Windows):
-
-1. Shut down all WSL distros:
-
-```powershell
-wsl --shutdown
-```
-
-2. Edit `%UserProfile%\.wslconfig` and add:
-
-```ini
-[wsl2]
-kernelCommandLine=vsyscall=emulate
-```
-
-3. Start WSL again and validate:
+If you want to validate everything automatically after changes:
 
 ```bash
-uname -a
-docker run --rm withinboredom/cloudera:quickstart /bin/bash -lc "echo ok"
+./scripts/smoke-test.sh
 ```
 
-After reboot:
+## 10) Useful logs
 
 ```bash
-docker compose down -v
-docker compose up -d
+docker logs -f hb-kdc
+docker logs -f hb-hive-metastore
+docker logs -f hb-hive-server2
+docker logs -f hb-hive-server2-open
+docker logs -f hb-impala-daemon
+docker logs -f hb-impala-daemon-open
 ```
-
-In tests for this environment, the most common errors were:
-- `SafeModeException` in HDFS (NameNode still in safe mode when HiveServer2 starts).
-- Derby metastore failures in `/metastore_db` when leftover state exists from previous attempts.

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REALM="${KRB5_REALM:-CLOUDERA.LOCAL}"
+REALM="${KRB5_REALM:-EXAMPLE.COM}"
 ADMIN_PW="${KRB5_ADMIN_PASSWORD:-admin123}"
-USER_PW="${KRB5_USER_PASSWORD:-cloudera123}"
-SERVICE_PW="${KRB5_SERVICE_PASSWORD:-service123}"
+TALEND_PW="${KRB5_TALEND_PASSWORD:-talend123}"
 DB_FILE="/var/lib/krb5kdc/principal"
 STASH_FILE="/etc/krb5kdc/.k5.${REALM}"
 
@@ -16,28 +15,32 @@ if [ ! -f "${STASH_FILE}" ]; then
   kdb5_util -r "$REALM" -P "$ADMIN_PW" stash -f "${STASH_FILE}"
 fi
 
-if [ ! -f "${DB_FILE}" ] || [ ! -f "${STASH_FILE}" ]; then
-  echo "Kerberos DB initialization failed. Missing ${DB_FILE} or ${STASH_FILE}."
-  exit 1
-fi
-
-# Admin principal for remote kadmin usage.
 kadmin.local -q "addprinc -pw ${ADMIN_PW} admin/admin@${REALM}" || true
-kadmin.local -q "addprinc -pw ${USER_PW} cloudera@${REALM}" || true
+kadmin.local -q "addprinc -pw ${TALEND_PW} talend@${REALM}" || true
 
-# Service principals used by the quickstart node.
-kadmin.local -q "addprinc -randkey hdfs/quickstart.cloudera.local@${REALM}" || true
-kadmin.local -q "addprinc -randkey yarn/quickstart.cloudera.local@${REALM}" || true
-kadmin.local -q "addprinc -randkey mapred/quickstart.cloudera.local@${REALM}" || true
-kadmin.local -q "addprinc -randkey HTTP/quickstart.cloudera.local@${REALM}" || true
-kadmin.local -q "addprinc -randkey cloudera-scm/quickstart.cloudera.local@${REALM}" || true
+# Service principals for HiveServer2 and Impala.
+kadmin.local -q "addprinc -randkey hive/localhost@${REALM}" || true
+kadmin.local -q "addprinc -randkey HTTP/localhost@${REALM}" || true
+
+# Impala uses host-based service principals for internal RPCs. Include internal
+# service hosts plus localhost (for host-side client tests).
+for host in localhost impala-statestored impala-catalogd impala.hadoop.local; do
+  kadmin.local -q "addprinc -randkey impala/${host}@${REALM}" || true
+done
 
 mkdir -p /keytabs
-kadmin.local -q "ktadd -k /keytabs/hdfs.keytab hdfs/quickstart.cloudera.local@${REALM}"
-kadmin.local -q "ktadd -k /keytabs/yarn.keytab yarn/quickstart.cloudera.local@${REALM}"
-kadmin.local -q "ktadd -k /keytabs/mapred.keytab mapred/quickstart.cloudera.local@${REALM}"
-kadmin.local -q "ktadd -k /keytabs/http.keytab HTTP/quickstart.cloudera.local@${REALM}"
-kadmin.local -q "ktadd -k /keytabs/cloudera-scm.keytab cloudera-scm/quickstart.cloudera.local@${REALM}"
+kadmin.local -q "ktadd -k /keytabs/hive.service.keytab hive/localhost@${REALM}"
+kadmin.local -q "ktadd -k /keytabs/http.service.keytab HTTP/localhost@${REALM}"
+for host in localhost impala-statestored impala-catalogd impala.hadoop.local; do
+  kadmin.local -q "ktadd -k /keytabs/impala.service.keytab impala/${host}@${REALM}"
+done
+
+# Optional client keytab for scripted tests.
+# Preserve the configured password so both password auth and keytab auth work.
+kadmin.local -q "ktadd -norandkey -k /keytabs/talend.user.keytab talend@${REALM}"
+
+# Dev-only: allow service containers running as non-root users to read keytabs.
+chmod 0644 /keytabs/*.keytab
 
 echo "*/admin@${REALM} *" > /etc/krb5kdc/kadm5.acl
 

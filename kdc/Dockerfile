@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     krb5-kdc \
     krb5-admin-server \
     krb5-user \
-    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY krb5.conf /etc/krb5.conf
