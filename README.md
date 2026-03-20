@@ -20,6 +20,7 @@ Ambiente local completo para testes com Talend e JDBC, com os dois modos ativos 
 - Para testes Kerberos no Windows:
   - MIT Kerberos for Windows, com `kinit`/`klist`
   - arquivo `krb5.ini`
+  - tutorial de instalação: [docs/windows/mit-kerberos-client.pt-BR.md](./docs/windows/mit-kerberos-client.pt-BR.md)
   - keytab do usuário de teste (`talend.user.keytab`)
 
 ## 2) Subir ambiente do zero
@@ -229,6 +230,10 @@ Antes de conectar no Windows:
 1. copie `./talend.user.keytab` para a máquina Windows, por exemplo `C:\Users\<SEU_USUARIO>\talend.user.keytab`
 2. copie [examples/windows/krb5.ini](./examples/windows/krb5.ini) para `C:\Windows\krb5.ini`, ou ajuste `KRB5_CONFIG` para outro caminho
 3. instale MIT Kerberos for Windows e confirme que `kinit` e `klist` estão disponíveis:
+
+Tutorial detalhado de instalação:
+
+- [docs/windows/mit-kerberos-client.pt-BR.md](./docs/windows/mit-kerberos-client.pt-BR.md)
 
 ```bat
 where kinit

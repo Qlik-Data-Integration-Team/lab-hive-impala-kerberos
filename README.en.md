@@ -20,6 +20,7 @@ Complete local environment for Talend and JDBC tests, with both modes active at 
 - For Kerberos tests on Windows:
   - MIT Kerberos for Windows, with `kinit`/`klist`
   - `krb5.ini` file
+  - installation tutorial: [docs/windows/mit-kerberos-client.en.md](./docs/windows/mit-kerberos-client.en.md)
   - test user keytab (`talend.user.keytab`)
 
 ## 2) Start environment from scratch
@@ -229,6 +230,10 @@ Before connecting on Windows:
 1. copy `./talend.user.keytab` to the Windows machine, for example `C:\Users\<YOUR_USER>\talend.user.keytab`
 2. copy [examples/windows/krb5.ini](./examples/windows/krb5.ini) to `C:\Windows\krb5.ini`, or point `KRB5_CONFIG` to another path
 3. install MIT Kerberos for Windows and confirm that `kinit` and `klist` are available:
+
+Detailed installation tutorial:
+
+- [docs/windows/mit-kerberos-client.en.md](./docs/windows/mit-kerberos-client.en.md)
 
 ```bat
 where kinit
