@@ -29,12 +29,19 @@ Scripts de conveniência na raiz:
 ```bash
 ./up.sh
 ./recreate.sh
+./sync-keytab.sh
 ./down.sh
 ./ps.sh
 ./logs.sh
 ./logs.sh hive-server2
 ./test.sh
 ```
+
+Observações:
+
+- `./up.sh` e `./recreate.sh` sincronizam automaticamente `./talend.user.keytab` na raiz do repositório
+- `./sync-keytab.sh` força somente essa sincronização, sem recriar serviços
+- `./talend.user.keytab` fica ignorado no Git e não deve ser commitado
 
 Equivalentes diretos:
 
@@ -52,7 +59,11 @@ docker compose up -d
 docker compose ps
 ```
 
-## 3) Portas e endpoints
+## 3) Arquivos gerados localmente
+
+- `./talend.user.keytab`: cópia local da keytab exportada pelo KDC para uso em clientes como DBeaver e Talend
+
+## 4) Portas e endpoints
 
 Infra:
 
@@ -77,7 +88,7 @@ Impala:
 - `25000`: UI Kerberos
 - `25001`: UI LDAP
 
-## 4) Principals e credenciais do laboratório
+## 5) Principals e credenciais do laboratório
 
 Realm: `EXAMPLE.COM`
 
@@ -88,7 +99,7 @@ Realm: `EXAMPLE.COM`
 - serviço Impala (cliente): `impala/impala.hadoop.local@EXAMPLE.COM`
 - serviço Impala (interno): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
 
-## 5) Health-check rápido
+## 6) Health-check rápido
 
 ```bash
 ./ps.sh
@@ -121,7 +132,7 @@ nc -zv localhost 21050
 nc -zv localhost 21051
 ```
 
-## 6) Talend - conexão com usuário/senha (primeiro teste)
+## 7) Talend - conexão com usuário/senha (primeiro teste)
 
 No assistente de conexão Hive (Repository):
 
@@ -137,7 +148,7 @@ No assistente de conexão Hive (Repository):
 
 Observação: em algumas versões do Talend a `String of Connection` é somente leitura. Nesse caso, use sempre `Additional JDBC Settings` para injetar parâmetros JDBC.
 
-## 7) Talend - conexão com Kerberos (Hive)
+## 8) Talend - conexão com Kerberos (Hive)
 
 ### 7.1 Preparar `krb5.ini` no Windows
 
@@ -193,9 +204,9 @@ Isso equivale a:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-## 8) DBeaver
+## 9) DBeaver
 
-### 8.1 Hive com usuário/senha
+### 9.1 Hive com usuário/senha
 
 No DBeaver:
 
@@ -212,12 +223,24 @@ URL JDBC de referência:
 jdbc:hive2://localhost:10001/default;auth=LDAP
 ```
 
-### 8.2 Hive com Kerberos
+### 9.2 Hive com Kerberos
 
-Antes de conectar, gere ticket Kerberos no cliente:
+Antes de conectar no Windows:
 
-```bash
-kinit -k -t /caminho/para/talend.user.keytab talend@EXAMPLE.COM
+1. copie [talend.user.keytab](/opt/cloudera-kerberos/talend.user.keytab) para a máquina Windows, por exemplo `C:\Users\<SEU_USUARIO>\talend.user.keytab`
+2. copie [examples/windows/krb5.ini](/opt/cloudera-kerberos/examples/windows/krb5.ini) para `C:\Windows\krb5.ini`, ou ajuste `KRB5_CONFIG` para outro caminho
+3. confirme que `kinit` e `klist` apontam para o cliente Kerberos correto:
+
+```bat
+where kinit
+where klist
+```
+
+4. gere o ticket Kerberos:
+
+```bat
+set KRB5_CONFIG=C:\Windows\krb5.ini
+kinit -k -t C:\Users\<SEU_USUARIO>\talend.user.keytab talend@EXAMPLE.COM
 klist
 ```
 
@@ -236,7 +259,7 @@ URL JDBC de referência:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-### 8.3 Impala com usuário/senha
+### 9.3 Impala com usuário/senha
 
 No DBeaver:
 
@@ -253,12 +276,13 @@ URL JDBC de referência:
 jdbc:impala://localhost:21051/default;AuthMech=3;UID=admin;PWD=Admin123$
 ```
 
-### 8.4 Impala com Kerberos
+### 9.4 Impala com Kerberos
 
-Antes de conectar, gere ticket Kerberos no cliente:
+Antes de conectar no Windows:
 
-```bash
-kinit -k -t /caminho/para/talend.user.keytab talend@EXAMPLE.COM
+```bat
+set KRB5_CONFIG=C:\Windows\krb5.ini
+kinit -k -t C:\Users\<SEU_USUARIO>\talend.user.keytab talend@EXAMPLE.COM
 klist
 ```
 
@@ -277,7 +301,7 @@ URL JDBC de referência:
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
-## 9) JDBC de referência
+## 10) JDBC de referência
 
 Hive com usuário/senha:
 
@@ -303,7 +327,7 @@ Impala com Kerberos:
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
-## 10) Troubleshooting rápido
+## 11) Troubleshooting rápido
 
 Erro de handshake/transport no Talend:
 
@@ -336,7 +360,7 @@ Se quiser validar tudo automaticamente após mudanças:
 ./scripts/smoke-test.sh
 ```
 
-## 11) Logs úteis
+## 12) Logs úteis
 
 ```bash
 docker logs -f hb-kdc

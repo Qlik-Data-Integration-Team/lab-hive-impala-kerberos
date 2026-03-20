@@ -6,3 +6,4 @@ cd "${ROOT_DIR}"
 
 docker compose up -d --build --force-recreate "$@"
 docker compose ps
+./sync-keytab.sh

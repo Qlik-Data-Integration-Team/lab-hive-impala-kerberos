@@ -6,3 +6,4 @@ cd "${ROOT_DIR}"
 
 docker compose up -d --build "$@"
 docker compose ps
+./sync-keytab.sh

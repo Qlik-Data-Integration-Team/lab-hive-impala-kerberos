@@ -29,12 +29,19 @@ Convenience scripts at repo root:
 ```bash
 ./up.sh
 ./recreate.sh
+./sync-keytab.sh
 ./down.sh
 ./ps.sh
 ./logs.sh
 ./logs.sh hive-server2
 ./test.sh
 ```
+
+Notes:
+
+- `./up.sh` and `./recreate.sh` automatically synchronize `./talend.user.keytab` into the repo root
+- `./sync-keytab.sh` only refreshes that file, without recreating services
+- `./talend.user.keytab` is ignored by Git and should not be committed
 
 Direct equivalents:
 
@@ -52,7 +59,11 @@ docker compose up -d
 docker compose ps
 ```
 
-## 3) Ports and endpoints
+## 3) Locally generated files
+
+- `./talend.user.keytab`: local copy of the keytab exported by the KDC for client tools such as DBeaver and Talend
+
+## 4) Ports and endpoints
 
 Infra:
 
@@ -77,7 +88,7 @@ Impala:
 - `25000`: Kerberos UI
 - `25001`: LDAP UI
 
-## 4) Lab principals and credentials
+## 5) Lab principals and credentials
 
 Realm: `EXAMPLE.COM`
 
@@ -88,7 +99,7 @@ Realm: `EXAMPLE.COM`
 - Impala service (client): `impala/impala.hadoop.local@EXAMPLE.COM`
 - Impala service (internal): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
 
-## 5) Quick health check
+## 6) Quick health check
 
 ```bash
 ./ps.sh
@@ -121,7 +132,7 @@ nc -zv localhost 21050
 nc -zv localhost 21051
 ```
 
-## 6) Talend - username/password connection (first test)
+## 7) Talend - username/password connection (first test)
 
 In Hive connection wizard (Repository):
 
@@ -137,7 +148,7 @@ In Hive connection wizard (Repository):
 
 Note: in some Talend versions, `String of Connection` is read-only. In that case, always use `Additional JDBC Settings` to inject JDBC parameters.
 
-## 7) Talend - Kerberos connection (Hive)
+## 8) Talend - Kerberos connection (Hive)
 
 ### 7.1 Prepare `krb5.ini` on Windows
 
@@ -193,9 +204,9 @@ Equivalent to:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-## 8) DBeaver
+## 9) DBeaver
 
-### 8.1 Hive with username/password
+### 9.1 Hive with username/password
 
 In DBeaver:
 
@@ -212,12 +223,24 @@ Reference JDBC URL:
 jdbc:hive2://localhost:10001/default;auth=LDAP
 ```
 
-### 8.2 Hive with Kerberos
+### 9.2 Hive with Kerberos
 
-Before connecting, generate a Kerberos ticket on the client:
+Before connecting on Windows:
 
-```bash
-kinit -k -t /path/to/talend.user.keytab talend@EXAMPLE.COM
+1. copy [talend.user.keytab](/opt/cloudera-kerberos/talend.user.keytab) to the Windows machine, for example `C:\Users\<YOUR_USER>\talend.user.keytab`
+2. copy [examples/windows/krb5.ini](/opt/cloudera-kerberos/examples/windows/krb5.ini) to `C:\Windows\krb5.ini`, or point `KRB5_CONFIG` to another path
+3. confirm that `kinit` and `klist` point to the correct Kerberos client:
+
+```bat
+where kinit
+where klist
+```
+
+4. generate the Kerberos ticket:
+
+```bat
+set KRB5_CONFIG=C:\Windows\krb5.ini
+kinit -k -t C:\Users\<YOUR_USER>\talend.user.keytab talend@EXAMPLE.COM
 klist
 ```
 
@@ -236,7 +259,7 @@ Reference JDBC URL:
 jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
 ```
 
-### 8.3 Impala with username/password
+### 9.3 Impala with username/password
 
 In DBeaver:
 
@@ -253,12 +276,13 @@ Reference JDBC URL:
 jdbc:impala://localhost:21051/default;AuthMech=3;UID=admin;PWD=Admin123$
 ```
 
-### 8.4 Impala with Kerberos
+### 9.4 Impala with Kerberos
 
-Before connecting, generate a Kerberos ticket on the client:
+Before connecting on Windows:
 
-```bash
-kinit -k -t /path/to/talend.user.keytab talend@EXAMPLE.COM
+```bat
+set KRB5_CONFIG=C:\Windows\krb5.ini
+kinit -k -t C:\Users\<YOUR_USER>\talend.user.keytab talend@EXAMPLE.COM
 klist
 ```
 
@@ -277,7 +301,7 @@ Reference JDBC URL:
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
-## 9) Reference JDBC
+## 10) Reference JDBC
 
 Hive with username/password:
 
@@ -303,7 +327,7 @@ Impala with Kerberos:
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
 ```
 
-## 10) Quick troubleshooting
+## 11) Quick troubleshooting
 
 Handshake/transport error in Talend:
 
@@ -336,7 +360,7 @@ If you want to validate everything automatically after changes:
 ./scripts/smoke-test.sh
 ```
 
-## 11) Useful logs
+## 12) Useful logs
 
 ```bash
 docker logs -f hb-kdc
