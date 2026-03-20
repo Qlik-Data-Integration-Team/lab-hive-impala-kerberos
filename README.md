@@ -18,7 +18,7 @@ Ambiente local completo para testes com Talend e JDBC, com os dois modos ativos 
 
 - Docker + Docker Compose
 - Para testes Kerberos no Windows:
-  - `kinit`/`klist` do Java (não o `klist` do Windows AD)
+  - MIT Kerberos for Windows, com `kinit`/`klist`
   - arquivo `krb5.ini`
   - keytab do usuário de teste (`talend.user.keytab`)
 
@@ -180,12 +180,11 @@ No `cmd.exe`:
 
 ```bat
 set KRB5_CONFIG=C:\Windows\krb5.ini
-set PATH=D:\portable\java\bin;%PATH%
 kinit -k -t C:\Users\<SEU_USUARIO>\talend.user.keytab talend@EXAMPLE.COM
 klist
 ```
 
-Esperado no `klist` (Java): principal default `talend@EXAMPLE.COM`.
+Esperado no `klist`: principal default `talend@EXAMPLE.COM`.
 
 ### 7.4 Configurar no Talend (sem checkbox “Use Kerberos authentication”)
 
@@ -229,7 +228,7 @@ Antes de conectar no Windows:
 
 1. copie `./talend.user.keytab` para a máquina Windows, por exemplo `C:\Users\<SEU_USUARIO>\talend.user.keytab`
 2. copie [examples/windows/krb5.ini](./examples/windows/krb5.ini) para `C:\Windows\krb5.ini`, ou ajuste `KRB5_CONFIG` para outro caminho
-3. confirme que `kinit` e `klist` apontam para o cliente Kerberos correto:
+3. instale MIT Kerberos for Windows e confirme que `kinit` e `klist` estão disponíveis:
 
 ```bat
 where kinit
@@ -337,7 +336,7 @@ Erro de handshake/transport no Talend:
 
 `kinit` autenticando no AD corporativo em vez de `EXAMPLE.COM`:
 
-- ajuste `PATH` para usar `kinit`/`klist` do Java
+- confirme que o `kinit`/`klist` do MIT Kerberos for Windows está sendo usado
 - valide com `where kinit` e `where klist`
 
 `PortUnreachableException` no `kinit`:
