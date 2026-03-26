@@ -13,4 +13,8 @@ EOF
 
 chmod +x /usr/local/bin/hive-jdbc
 
+if [[ "$#" -gt 0 ]]; then
+  exec "$@"
+fi
+
 exec tail -f /dev/null

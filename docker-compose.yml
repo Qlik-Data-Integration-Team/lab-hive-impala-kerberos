@@ -57,7 +57,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "ldapsearch -x -H ldap://127.0.0.1:389 -D 'cn=admin,dc=example,dc=com' -w admin123 -b 'dc=example,dc=com' '(uid=qlik)' uid >/dev/null 2>&1"
+          "ldapsearch -x -H ldap://127.0.0.1:389 -D 'cn=admin,dc=example,dc=com' -w admin123 -b 'dc=example,dc=com' '(uid=admin)' uid >/dev/null 2>&1"
         ]
       interval: 10s
       timeout: 5s
@@ -182,6 +182,7 @@ services:
       HIVE_CUSTOM_CONF_DIR: /hive_custom_conf
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
+      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "9083:9083"
     healthcheck:
@@ -215,8 +216,10 @@ services:
       - ./hive-conf:/hive_custom_conf:ro
       - ./hive-conf/hive-site.hs2-kerberos.xml:/hive_custom_conf/hive-site.xml:ro
       - ./hive-conf/core-site.kerberos.xml:/hive_custom_conf/core-site.xml:ro
+      - ./datasets:/datasets:ro
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
+      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "10000:10000"
       - "10002:10002"
@@ -224,6 +227,8 @@ services:
       - /bin/bash
       - -lc
       - |
+        mkdir -p /tmp/warehouse
+        chmod 1777 /tmp/warehouse
         mkdir -p /tmp/hive
         chmod 1777 /tmp/hive
         exec /entrypoint.sh
@@ -250,6 +255,8 @@ services:
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
       - ./hive-conf/hive-site.ldap.xml:/hive_custom_conf/hive-site.xml:ro
+      - ./datasets:/datasets:ro
+      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "10001:10000"
       - "10003:10002"
@@ -257,6 +264,8 @@ services:
       - /bin/bash
       - -lc
       - |
+        mkdir -p /tmp/warehouse
+        chmod 1777 /tmp/warehouse
         mkdir -p /tmp/hive
         chmod 1777 /tmp/hive
         exec /entrypoint.sh
@@ -271,10 +280,8 @@ services:
     command:
       - /opt/impala/bin/statestored
       - -log_dir=/opt/impala/logs
-      - -hostname=localhost
-      - -use_resolved_hostname=true
-      - -principal=impala/impala-statestored@EXAMPLE.COM
-      - -be_principal=impala/impala-statestored@EXAMPLE.COM
+      - -principal=impala/172.30.0.14@EXAMPLE.COM
+      - -be_principal=impala/172.30.0.14@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -282,6 +289,9 @@ services:
     volumes:
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
+    networks:
+      default:
+        ipv4_address: 172.30.0.14
 
   impala-catalogd:
     image: apache/impala:4.5.0-catalogd
@@ -297,14 +307,12 @@ services:
     command:
       - /opt/impala/bin/catalogd
       - -log_dir=/opt/impala/logs
-      - -hostname=localhost
       - -abort_on_config_error=false
-      - -state_store_host=impala-statestored
+      - -state_store_host=172.30.0.14
       - -catalog_topic_mode=minimal
-      - -hms_event_polling_interval_s=0
-      - -use_resolved_hostname=true
-      - -principal=impala/impala-catalogd@EXAMPLE.COM
-      - -be_principal=impala/impala-catalogd@EXAMPLE.COM
+      - -hms_event_polling_interval_s=2
+      - -principal=impala/172.30.0.16@EXAMPLE.COM
+      - -be_principal=impala/172.30.0.16@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -315,6 +323,10 @@ services:
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.xml:/opt/impala/conf/hive-site.xml:ro
       - shared-keytabs:/keytabs:ro
+      - ./.data/warehouse:/tmp/warehouse
+    networks:
+      default:
+        ipv4_address: 172.30.0.16
 
   impala-daemon:
     image: apache/impala:4.5.0-impalad_coord_exec
@@ -332,16 +344,14 @@ services:
     command:
       - /opt/impala/bin/impalad
       - -log_dir=/opt/impala/logs
-      - -hostname=localhost
       - -abort_on_config_error=false
-      - -state_store_host=impala-statestored
-      - -catalog_service_host=impala-catalogd
+      - -state_store_host=172.30.0.14
+      - -catalog_service_host=172.30.0.16
       - -catalog_topic_mode=minimal
       - -mem_limit_includes_jvm=true
       - -use_local_catalog=true
-      - -use_resolved_hostname=true
       - -principal=impala/impala.hadoop.local@EXAMPLE.COM
-      - -be_principal=impala/impala.hadoop.local@EXAMPLE.COM
+      - -be_principal=impala/172.30.0.17@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false
@@ -353,10 +363,14 @@ services:
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.xml:/opt/impala/conf/hive-site.xml:ro
       - shared-keytabs:/keytabs:ro
+      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "21000:21000"
       - "21050:21050"
       - "25000:25000"
+    networks:
+      default:
+        ipv4_address: 172.30.0.17
 
   impala-statestored-open:
     image: apache/impala:4.5.0-statestored
@@ -384,7 +398,7 @@ services:
       - -abort_on_config_error=false
       - -state_store_host=impala-statestored-open
       - -catalog_topic_mode=minimal
-      - -hms_event_polling_interval_s=0
+      - -hms_event_polling_interval_s=2
       - -use_resolved_hostname=true
       - -skip_internal_kerberos_auth=true
       - -skip_external_kerberos_auth=true
@@ -392,6 +406,7 @@ services:
       - ./hive-conf/core-site.xml:/opt/impala/conf/core-site.xml:ro
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.no-kerberos.xml:/opt/impala/conf/hive-site.xml:ro
+      - ./.data/warehouse:/tmp/warehouse
 
   impala-daemon-open:
     image: apache/impala:4.5.0-impalad_coord_exec
@@ -427,6 +442,7 @@ services:
       - ./hive-conf/core-site.xml:/opt/impala/conf/core-site.xml:ro
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.no-kerberos.xml:/opt/impala/conf/hive-site.xml:ro
+      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "21001:21000"
       - "21051:21050"
@@ -435,6 +451,7 @@ services:
   kerberos-client:
     build:
       context: ./kerberos-client
+    image: hb-kerberos-client:local
     container_name: hb-kerberos-client
     hostname: client.hadoop.local
     depends_on:
@@ -443,6 +460,28 @@ services:
     volumes:
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
+
+  dataset-seed:
+    build:
+      context: ./kerberos-client
+    image: hb-kerberos-client:local
+    container_name: hb-dataset-seed
+    depends_on:
+      hive-server2-open:
+        condition: service_started
+      impala-daemon-open:
+        condition: service_started
+      impala-daemon:
+        condition: service_started
+      kerberos-client:
+        condition: service_started
+    volumes:
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - ./datasets:/datasets:ro
+      - ./scripts/seed-demo-data.sh:/seed-demo-data.sh:ro
+      - shared-keytabs:/keytabs:ro
+    command: ["/bin/bash", "/seed-demo-data.sh"]
+    restart: "no"
 
 volumes:
   kdc-db:
@@ -454,3 +493,7 @@ volumes:
 networks:
   default:
     name: hbnet
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25

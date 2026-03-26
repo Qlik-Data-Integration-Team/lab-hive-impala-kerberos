@@ -41,6 +41,7 @@ Scripts de conveniência na raiz:
 Observações:
 
 - `./up.sh` e `./recreate.sh` sincronizam automaticamente `./talend.user.keytab` na raiz do repositório
+- `./up.sh` e `./recreate.sh` também aguardam o bootstrap de dados de exemplo terminar com sucesso
 - `./sync-keytab.sh` força somente essa sincronização, sem recriar serviços
 - `./talend.user.keytab` fica ignorado no Git e não deve ser commitado
 
@@ -100,6 +101,35 @@ Realm: `EXAMPLE.COM`
 - serviço Impala (cliente): `impala/impala.hadoop.local@EXAMPLE.COM`
 - serviço Impala (interno): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
 
+## Dataset de demonstração
+
+O ambiente sobe com três bancos de exemplo já populados e equivalentes entre si:
+
+- `demo_sales_en`: modelo canônico em inglês
+- `demo_vendas_ptbr`: modelo traduzido em português do Brasil
+- `demo_ventas_esmx`: modelo traduzido em espanhol do México
+
+Cada banco tem cinco tabelas relacionadas:
+
+- EN: `customers`, `categories`, `products`, `orders`, `order_items`
+- PT-BR: `clientes`, `categorias`, `produtos`, `pedidos`, `itens_pedido`
+- ES-MX: `clientes`, `categorias`, `productos`, `pedidos`, `partidas_pedido`
+
+Os três bancos são bootstrapados automaticamente no Hive:
+
+- Hive LDAP (`10001`): leitura e exploração completas
+- Hive Kerberos (`10000`): metadata e leituras simples, como `show tables` e `select ... limit`
+
+Nos endpoints Impala, autenticação e conectividade estão operacionais, mas os schemas de demonstração ainda não aparecem de forma confiável por uma incompatibilidade entre o catálogo do Impala 4.5.0 e o Hive Metastore 3.1.3 (`get_dataconnectors`).
+
+Consultas rápidas portáveis para Hive:
+
+```sql
+show tables in demo_sales_en;
+select * from demo_vendas_ptbr.pedidos limit 5;
+select * from demo_ventas_esmx.partidas_pedido limit 5;
+```
+
 ## 6) Health-check rápido
 
 ```bash
@@ -118,6 +148,7 @@ Esperado:
 - `hb-openldap`: `healthy`
 - `hb-postgres`: `healthy`
 - `hb-hdfs-init`: `Exited (0)`
+- `hb-dataset-seed`: `Exited (0)`
 - `hb-hive-metastore`: `healthy`
 - `hb-hive-server2`: `Up`
 - `hb-hive-server2-open`: `Up`
@@ -329,6 +360,18 @@ Impala com Kerberos:
 
 ```text
 jdbc:impala://localhost:21050/default;AuthMech=1;KrbRealm=EXAMPLE.COM;KrbHostFQDN=impala.hadoop.local;KrbServiceName=impala
+```
+
+Consultas de exemplo para Hive:
+
+```sql
+show tables in demo_sales_en;
+
+select * from demo_sales_en.orders limit 5;
+
+select * from demo_vendas_ptbr.pedidos limit 5;
+
+select * from demo_ventas_esmx.partidas_pedido limit 5;
 ```
 
 ## 11) Troubleshooting rápido

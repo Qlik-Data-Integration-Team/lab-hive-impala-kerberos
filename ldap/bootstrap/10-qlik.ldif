@@ -15,7 +15,7 @@ sn: admin
 uid: admin
 uidNumber: 10000
 gidNumber: 10000
-homeDirectory: /home/qlik
+homeDirectory: /home/admin
 loginShell: /bin/bash
 mail: admin@example.com
 userPassword: Admin123$

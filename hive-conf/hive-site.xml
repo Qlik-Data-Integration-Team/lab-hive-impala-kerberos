@@ -23,7 +23,7 @@
   </property>
   <property>
     <name>hive.metastore.warehouse.dir</name>
-    <value>/user/hive/warehouse</value>
+    <value>file:///tmp/warehouse</value>
   </property>
   <property>
     <name>hive.metastore.schema.verification</name>
@@ -36,6 +36,10 @@
   <property>
     <name>metastore.metastore.event.db.notification.api.auth</name>
     <value>false</value>
+  </property>
+  <property>
+    <name>hive.metastore.dml.events</name>
+    <value>true</value>
   </property>
 
   <property>
