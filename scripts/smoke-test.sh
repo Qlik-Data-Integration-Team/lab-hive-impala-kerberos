@@ -56,6 +56,32 @@ retry_cmd() {
   return 1
 }
 
+run_and_expect() {
+  local expected=()
+  local output
+  local needle
+
+  while [[ "$#" -gt 0 && "$1" != "--" ]]; do
+    expected+=("$1")
+    shift
+  done
+
+  shift
+
+  output="$("$@" 2>&1)" || {
+    printf '%s\n' "${output}"
+    return 1
+  }
+
+  printf '%s\n' "${output}"
+
+  for needle in "${expected[@]}"; do
+    if ! grep -Fq -- "${needle}" <<<"${output}"; then
+      return 1
+    fi
+  done
+}
+
 echo "[1/10] Rebuilding and starting the stack"
 docker compose down -v --remove-orphans >/dev/null 2>&1 || true
 rm -rf ./.data/warehouse/*
@@ -93,12 +119,15 @@ echo "[7/10] Validating Hive with Kerberos"
 retry_cmd 12 docker exec hb-kerberos-client bash -lc "kinit -k -t /keytabs/talend.user.keytab talend@EXAMPLE.COM && hive-jdbc -u 'jdbc:hive2://hive-server2:10000/default;principal=hive/localhost@EXAMPLE.COM;auth=kerberos' -e 'select * from demo_vendas_ptbr.pedidos limit 3;' && kdestroy"
 
 echo "[8/10] Validating Impala with LDAP username/password"
-retry_cmd 12 docker exec hb-kerberos-client bash -lc "hive-jdbc -u 'jdbc:hive2://impala-daemon-open:21050/default' -n 'admin' -p 'Admin123$' -e 'show databases;'"
+retry_cmd 12 run_and_expect demo_sales_en demo_vendas_ptbr demo_ventas_esmx -- \
+  docker exec hb-kerberos-client bash -lc "hive-jdbc -u 'jdbc:hive2://impala-daemon-open:21050/default' -n 'admin' -p 'Admin123$' -e 'show databases;'"
 
 echo "[9/10] Validating Impala with Kerberos"
-retry_cmd 12 docker exec hb-kerberos-client bash -lc "kinit -k -t /keytabs/talend.user.keytab talend@EXAMPLE.COM && hive-jdbc -u 'jdbc:hive2://impala-daemon:21050/default;principal=impala/impala.hadoop.local@EXAMPLE.COM;auth=kerberos' -e 'show databases;' && kdestroy"
+retry_cmd 12 run_and_expect demo_sales_en demo_vendas_ptbr demo_ventas_esmx -- \
+  docker exec hb-kerberos-client bash -lc "kinit -k -t /keytabs/talend.user.keytab talend@EXAMPLE.COM && hive-jdbc -u 'jdbc:hive2://impala-daemon:21050/default;principal=impala/impala.hadoop.local@EXAMPLE.COM;auth=kerberos' -e 'show databases;' && kdestroy"
 
 echo "[10/10] Validating localized schemas in all languages"
-retry_cmd 12 docker exec hb-kerberos-client bash -lc "hive-jdbc -u 'jdbc:hive2://hive-server2-open:10000/default' -n 'admin' -p 'Admin123$' -e 'show databases like \"demo_*\";'"
+retry_cmd 12 run_and_expect demo_sales_en demo_vendas_ptbr demo_ventas_esmx -- \
+  docker exec hb-kerberos-client bash -lc "hive-jdbc -u 'jdbc:hive2://hive-server2-open:10000/default' -n 'admin' -p 'Admin123$' -e 'show databases like \"demo_*\";'"
 
 echo "Smoke test completed successfully."

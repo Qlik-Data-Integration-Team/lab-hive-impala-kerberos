@@ -158,7 +158,9 @@ services:
     restart: "no"
 
   hive-metastore:
-    image: apache/hive:3.1.3
+    build:
+      context: ./hive-metastore
+    image: hb-hive-metastore:local
     container_name: hb-hive-metastore
     hostname: metastore.hadoop.local
     depends_on:
@@ -166,10 +168,14 @@ services:
         condition: service_healthy
       hdfs-init:
         condition: service_completed_successfully
-    entrypoint: ["/bin/bash", "/hive_custom_conf/metastore-entrypoint.sh"]
     environment:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
+      METASTORE_DB_HOST: postgres
+      METASTORE_DB_PORT: "5432"
+      METASTORE_DB_NAME: metastore
+      METASTORE_DB_USER: hive
+      METASTORE_DB_PASSWORD: hive123
       SERVICE_OPTS: >
         -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
         -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
@@ -341,6 +347,8 @@ services:
         condition: service_started
       kdc:
         condition: service_healthy
+    entrypoint:
+      - /opt/impala/bin/daemon_entrypoint.sh
     command:
       - /opt/impala/bin/impalad
       - -log_dir=/opt/impala/logs
@@ -350,8 +358,11 @@ services:
       - -catalog_topic_mode=minimal
       - -mem_limit_includes_jvm=true
       - -use_local_catalog=true
+      - -rpc_use_loopback=true
+      - -use_resolved_hostname=false
+      - -hostname=impala.hadoop.local
       - -principal=impala/impala.hadoop.local@EXAMPLE.COM
-      - -be_principal=impala/172.30.0.17@EXAMPLE.COM
+      - -be_principal=impala/impala.hadoop.local@EXAMPLE.COM
       - -keytab_file=/keytabs/impala.service.keytab
       - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=false

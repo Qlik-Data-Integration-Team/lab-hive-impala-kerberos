@@ -24,14 +24,14 @@ kadmin.local -q "addprinc -randkey HTTP/localhost@${REALM}" || true
 
 # Impala uses host-based service principals for internal RPCs. Include internal
 # service hosts plus localhost (for host-side client tests).
-for host in localhost impala-statestored impala-catalogd impala.hadoop.local 172.30.0.14 172.30.0.16 172.30.0.17; do
+for host in localhost 127.0.0.1 impala-statestored impala-catalogd impala.hadoop.local 172.30.0.14 172.30.0.16 172.30.0.17; do
   kadmin.local -q "addprinc -randkey impala/${host}@${REALM}" || true
 done
 
 mkdir -p /keytabs
 kadmin.local -q "ktadd -k /keytabs/hive.service.keytab hive/localhost@${REALM}"
 kadmin.local -q "ktadd -k /keytabs/http.service.keytab HTTP/localhost@${REALM}"
-for host in localhost impala-statestored impala-catalogd impala.hadoop.local 172.30.0.14 172.30.0.16 172.30.0.17; do
+for host in localhost 127.0.0.1 impala-statestored impala-catalogd impala.hadoop.local 172.30.0.14 172.30.0.16 172.30.0.17; do
   kadmin.local -q "ktadd -k /keytabs/impala.service.keytab impala/${host}@${REALM}"
 done
 

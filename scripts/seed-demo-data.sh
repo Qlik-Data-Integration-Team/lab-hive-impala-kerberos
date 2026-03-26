@@ -58,8 +58,13 @@ run_impala_kerberos() {
 
 best_effort_impala_catalog_sync() {
   if ! run_impala_ldap_python "invalidate metadata"; then
-    echo "WARNING: Impala catalog refresh failed. Hive datasets were loaded, but Impala may not list them." >&2
+    echo "WARNING: Impala LDAP catalog refresh failed. Hive datasets were loaded, but Impala may not list them." >&2
     echo "WARNING: The current Impala + metastore combination is reporting a catalog initialization incompatibility." >&2
+    return 1
+  fi
+
+  if ! run_impala_kerberos -e "invalidate metadata;" >/dev/null; then
+    echo "WARNING: Impala Kerberos catalog refresh failed. Hive datasets were loaded, but Impala may not list them." >&2
     return 1
   fi
 
@@ -70,6 +75,21 @@ best_effort_impala_catalog_sync() {
 
   if ! wait_for_query 12 run_impala_ldap_python "show tables in demo_vendas_ptbr"; then
     echo "WARNING: Impala LDAP did not observe demo_vendas_ptbr after metadata refresh." >&2
+    return 1
+  fi
+
+  if ! wait_for_query 12 run_impala_ldap_python "show tables in demo_ventas_esmx"; then
+    echo "WARNING: Impala LDAP did not observe demo_ventas_esmx after metadata refresh." >&2
+    return 1
+  fi
+
+  if ! wait_for_query 12 run_impala_kerberos -e "show tables in demo_sales_en;" >/dev/null; then
+    echo "WARNING: Impala Kerberos did not observe demo_sales_en after metadata refresh." >&2
+    return 1
+  fi
+
+  if ! wait_for_query 12 run_impala_kerberos -e "show tables in demo_vendas_ptbr;" >/dev/null; then
+    echo "WARNING: Impala Kerberos did not observe demo_vendas_ptbr after metadata refresh." >&2
     return 1
   fi
 
