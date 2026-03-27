@@ -112,6 +112,49 @@ curl --negotiate -u : -sS "http://localhost:14000/webhdfs/v1/?op=LISTSTATUS"
 curl -sS "http://localhost:14001/webhdfs/v1/?op=LISTSTATUS&user.name=root"
 ```
 
+Para `WebHDFS`, operações de leitura e escrita fazem redirect para o DataNode. No host local, deixe estas portas acessíveis também:
+
+- `9864`: DataNode HTTP do cluster Kerberos
+- `9865`: DataNode HTTP do cluster open
+
+Exemplo de escrita e leitura via `WebHDFS` open no host:
+
+```bash
+printf 'hello-webhdfs-open\n' >/tmp/webhdfs-open.txt
+
+CREATE_URL="$(curl -sS -D - -o /dev/null -X PUT \
+  "http://localhost:9871/webhdfs/v1/tmp/webhdfs-open.txt?op=CREATE&overwrite=true&user.name=root" \
+  | awk '/^Location:/ {print $2}' | tr -d '\r')"
+CREATE_URL="${CREATE_URL/datanode-open.hadoop.local:9865/127.0.0.1:9865}"
+
+curl -sS -X PUT -H 'Content-Type: application/octet-stream' \
+  --data-binary @/tmp/webhdfs-open.txt "${CREATE_URL}"
+
+OPEN_URL="$(curl -sS -D - -o /dev/null \
+  "http://localhost:9871/webhdfs/v1/tmp/webhdfs-open.txt?op=OPEN&user.name=root" \
+  | awk '/^Location:/ {print $2}' | tr -d '\r')"
+OPEN_URL="${OPEN_URL/datanode-open.hadoop.local:9865/127.0.0.1:9865}"
+
+curl -sS "${OPEN_URL}"
+curl -sS -X DELETE "http://localhost:9871/webhdfs/v1/tmp/webhdfs-open.txt?op=DELETE&user.name=root"
+```
+
+Exemplo equivalente via `HttpFS` open no host:
+
+```bash
+printf 'hello-httpfs-open\n' >/tmp/httpfs-open.txt
+
+CREATE_URL="$(curl -sS -D - -o /dev/null -X PUT \
+  "http://localhost:14001/webhdfs/v1/tmp/httpfs-open.txt?op=CREATE&overwrite=true&user.name=root" \
+  | awk '/^Location:/ {print $2}' | tr -d '\r')"
+
+curl -sS -X PUT -H 'Content-Type: application/octet-stream' \
+  --data-binary @/tmp/httpfs-open.txt "${CREATE_URL}"
+
+curl -sS "http://localhost:14001/webhdfs/v1/tmp/httpfs-open.txt?op=OPEN&user.name=root"
+curl -sS -X DELETE "http://localhost:14001/webhdfs/v1/tmp/httpfs-open.txt?op=DELETE&user.name=root"
+```
+
 Se preferir usar aliases em vez de `localhost`, os hostnames internos são:
 
 - `namenode.hadoop.local`: `WebHDFS` com Kerberos
