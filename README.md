@@ -71,8 +71,12 @@ Infra:
 
 - `88/tcp` + `88/udp`: KDC
 - `749/tcp`: kadmin
-- `9870`: NameNode UI
-- `8020`: HDFS RPC
+- `9870`: NameNode HTTP seguro (`WebHDFS` com Kerberos)
+- `9871`: NameNode HTTP open (`WebHDFS` sem Kerberos)
+- `8020`: HDFS RPC seguro
+- `8021`: HDFS RPC open
+- `14000`: `HttpFS` com Kerberos
+- `14001`: `HttpFS` sem Kerberos
 - `8088`: YARN UI
 - `19888`: JobHistory UI
 - `9083`: Hive Metastore
@@ -90,6 +94,31 @@ Impala:
 - `25000`: UI Kerberos
 - `25001`: UI LDAP
 
+### Acesso HTTP ao HDFS a partir do host
+
+Use `localhost` para testes rápidos no host local:
+
+- `WebHDFS` com Kerberos: `http://localhost:9870/webhdfs/v1/?op=LISTSTATUS`
+- `WebHDFS` sem Kerberos: `http://localhost:9871/webhdfs/v1/?op=LISTSTATUS&user.name=root`
+- `HttpFS` com Kerberos: `http://localhost:14000/webhdfs/v1/?op=LISTSTATUS`
+- `HttpFS` sem Kerberos: `http://localhost:14001/webhdfs/v1/?op=LISTSTATUS&user.name=root`
+
+Exemplos com `curl`:
+
+```bash
+curl --negotiate -u : -sS "http://localhost:9870/webhdfs/v1/?op=LISTSTATUS"
+curl -sS "http://localhost:9871/webhdfs/v1/?op=LISTSTATUS&user.name=root"
+curl --negotiate -u : -sS "http://localhost:14000/webhdfs/v1/?op=LISTSTATUS"
+curl -sS "http://localhost:14001/webhdfs/v1/?op=LISTSTATUS&user.name=root"
+```
+
+Se preferir usar aliases em vez de `localhost`, os hostnames internos são:
+
+- `namenode.hadoop.local`: `WebHDFS` com Kerberos
+- `namenode-open.hadoop.local`: `WebHDFS` sem Kerberos
+- `httpfs.hadoop.local`: `HttpFS` com Kerberos
+- `httpfs-open.hadoop.local`: `HttpFS` sem Kerberos
+
 ## 5) Principals e credenciais do laboratório
 
 Realm: `EXAMPLE.COM`
@@ -97,7 +126,7 @@ Realm: `EXAMPLE.COM`
 - admin: `admin/admin@EXAMPLE.COM` senha `admin123`
 - usuário Talend: `talend@EXAMPLE.COM` senha `talend123`
 - usuário LDAP: `admin` senha `Admin123$`
-- serviço Hive: `hive/localhost@EXAMPLE.COM`
+- serviço Hive: `hive/hiveserver2.hadoop.local@EXAMPLE.COM`
 - serviço Impala (cliente): `impala/impala.hadoop.local@EXAMPLE.COM`
 - serviço Impala (interno): `impala/impala-statestored@EXAMPLE.COM`, `impala/impala-catalogd@EXAMPLE.COM`
 
@@ -227,12 +256,12 @@ Se a tela não mostra checkbox Kerberos e a URL é bloqueada, use:
 - `DataBase`: `default`
 - `Login`: vazio
 - `Password`: vazio
-- `Additional JDBC Settings`: `auth=kerberos;principal=hive/localhost@EXAMPLE.COM`
+- `Additional JDBC Settings`: `auth=kerberos;principal=hive/hiveserver2.hadoop.local@EXAMPLE.COM`
 
 Isso equivale a:
 
 ```text
-jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/hiveserver2.hadoop.local@EXAMPLE.COM
 ```
 
 ## 9) DBeaver
@@ -291,7 +320,7 @@ No DBeaver:
 URL JDBC de referência:
 
 ```text
-jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/hiveserver2.hadoop.local@EXAMPLE.COM
 ```
 
 ### 9.3 Impala com usuário/senha
@@ -347,7 +376,7 @@ jdbc:hive2://localhost:10001/default;auth=LDAP
 Hive com Kerberos:
 
 ```text
-jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/localhost@EXAMPLE.COM
+jdbc:hive2://localhost:10000/default;auth=kerberos;principal=hive/hiveserver2.hadoop.local@EXAMPLE.COM
 ```
 
 Impala com usuário/senha:
