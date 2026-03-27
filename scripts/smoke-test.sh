@@ -340,7 +340,8 @@ run_and_expect_failure "Invalid Credentials" -- \
   docker exec hb-kerberos-client bash -lc "hive-jdbc -u 'jdbc:hive2://hive-server2-open:10000/default' -n 'admin' -p 'wrongpass' -e 'show databases;'"
 
 echo "[24/24] Validating Kerberos endpoints reject missing tickets"
-run_and_expect_failure "GSS initiate failed" -- \
-  docker exec hb-kerberos-client bash -lc "kdestroy >/dev/null 2>&1 || true; hive-jdbc -u 'jdbc:hive2://impala-daemon:21050/default;principal=impala/impala.hadoop.local@EXAMPLE.COM;auth=kerberos' -e 'show databases;'"
+run_and_expect_failure "No valid credentials provided" "GSS initiate failed" -- \
+  docker exec hb-kerberos-client bash -lc "kdestroy >/dev/null 2>&1 || true; if klist -s; then echo 'Kerberos ticket should not exist before the negative-auth test.' >&2; exit 1; fi; hive-jdbc -u 'jdbc:hive2://impala-daemon:21050/default;principal=impala/impala.hadoop.local@EXAMPLE.COM;auth=kerberos' -e 'show databases;'"
+echo "[24/24] Expected Kerberos rejection confirmed"
 
 echo "Smoke test completed successfully."
