@@ -11,3 +11,4 @@ if [[ "$#" -eq 0 ]]; then
   ./scripts/wait-for-dataset-seed.sh
 fi
 ./sync-keytab.sh
+bash ./export-current-stack-configs.sh

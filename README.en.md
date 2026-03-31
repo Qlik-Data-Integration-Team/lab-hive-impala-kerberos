@@ -41,6 +41,7 @@ Convenience scripts at repo root:
 Notes:
 
 - `./up.sh` and `./recreate.sh` automatically synchronize `./talend.user.keytab` into the repo root
+- `./up.sh` and `./recreate.sh` also automatically export the `kerberos` and `open` stack XMLs into `./exported-configs`
 - `./up.sh` and `./recreate.sh` also wait until demo data bootstrap finishes successfully
 - `./sync-keytab.sh` only refreshes that file, without recreating services
 - `./talend.user.keytab` is ignored by Git and should not be committed

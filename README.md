@@ -41,6 +41,7 @@ Scripts de conveniência na raiz:
 Observações:
 
 - `./up.sh` e `./recreate.sh` sincronizam automaticamente `./talend.user.keytab` na raiz do repositório
+- `./up.sh` e `./recreate.sh` também exportam automaticamente os XMLs dos stacks `kerberos` e `open` para `./exported-configs`
 - `./up.sh` e `./recreate.sh` também aguardam o bootstrap de dados de exemplo terminar com sucesso
 - `./sync-keytab.sh` força somente essa sincronização, sem recriar serviços
 - `./talend.user.keytab` fica ignorado no Git e não deve ser commitado
