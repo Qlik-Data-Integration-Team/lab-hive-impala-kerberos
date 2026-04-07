@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>historyserver.hadoop.local:10200</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>historyserver.hadoop.local:8188</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.principal</name>
+    <value>mapred/hb-historyserver.hbnet@EXAMPLE.COM</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.keytab</name>
+    <value>/keytabs/mapred.service.keytab</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.webapp.spnego-principal</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.webapp.spnego-keytab-file</name>
+    <value>/keytabs/http.service.keytab</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.intermediate-done-dir</name>
+    <value>/mr-history/tmp</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.done-dir</name>
+    <value>/mr-history/done</value>
+  </property>
+<property><name>yarn.nodemanager.bind-host</name><value>0.0.0.0</value></property>
+</configuration>

@@ -3,6 +3,7 @@ FROM apache/hive:3.1.3
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    krb5-user \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 

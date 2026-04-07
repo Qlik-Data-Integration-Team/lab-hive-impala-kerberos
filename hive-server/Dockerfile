@@ -2,19 +2,12 @@ FROM apache/hive:3.1.3
 
 USER root
 
-ENV DEBIAN_FRONTEND=noninteractive
 ARG TEZ_VERSION=0.10.0
 ENV TEZ_VERSION=${TEZ_VERSION}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
     curl \
     krb5-user \
-    libkrb5-dev \
-    netcat-openbsd \
-    python3 \
-    python3-dev \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -30,14 +23,4 @@ RUN set -eux; \
     rm -f /opt/tez/lib/hadoop-*.jar; \
     rm -rf /tmp/apache-tez-bin /tmp/apache-tez-bin.tar.gz
 
-RUN pip3 install --no-cache-dir impyla kerberos
-
-RUN ln -sf /opt/hadoop/bin/hdfs /usr/local/bin/hdfs \
-    && ln -sf /opt/hadoop/bin/hadoop /usr/local/bin/hadoop \
-    && ln -sf /opt/hadoop/bin/yarn /usr/local/bin/yarn \
-    && ln -sf /opt/hive/bin/beeline /usr/local/bin/beeline
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+USER hive

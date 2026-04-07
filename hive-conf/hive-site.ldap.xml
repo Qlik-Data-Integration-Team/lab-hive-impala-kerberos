@@ -23,7 +23,7 @@
   </property>
   <property>
     <name>hive.metastore.warehouse.dir</name>
-    <value>file:///tmp/warehouse</value>
+    <value>/user/hive/warehouse</value>
   </property>
   <property>
     <name>hive.metastore.schema.verification</name>
@@ -32,6 +32,10 @@
   <property>
     <name>hive.metastore.dml.events</name>
     <value>true</value>
+  </property>
+  <property>
+    <name>hive.metastore.execute.setugi</name>
+    <value>false</value>
   </property>
 
   <property>
@@ -62,10 +66,18 @@
     <name>hive.server2.enable.doAs</name>
     <value>false</value>
   </property>
+  <property>
+    <name>hive.server2.authentication.kerberos.principal</name>
+    <value>hive/_HOST@EXAMPLE.COM</value>
+  </property>
+  <property>
+    <name>hive.server2.authentication.kerberos.keytab</name>
+    <value>/keytabs/hive.service.keytab</value>
+  </property>
 
   <property>
     <name>hive.exec.scratchdir</name>
-    <value>file:///tmp/hive</value>
+    <value>/tmp/hive</value>
   </property>
   <property>
     <name>hive.exec.local.scratchdir</name>
@@ -74,18 +86,18 @@
 
   <property>
     <name>hive.execution.engine</name>
-    <value>mr</value>
-  </property>
-  <property>
-    <name>mapreduce.framework.name</name>
-    <value>local</value>
-  </property>
-  <property>
-    <name>mapreduce.jobtracker.address</name>
-    <value>local</value>
+    <value>tez</value>
   </property>
   <property>
     <name>hive.server2.tez.initialize.default.sessions</name>
-    <value>false</value>
+    <value>true</value>
+  </property>
+  <property>
+    <name>hive.server2.tez.sessions.per.default.queue</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>hive.tez.container.size</name>
+    <value>256</value>
   </property>
 </configuration>

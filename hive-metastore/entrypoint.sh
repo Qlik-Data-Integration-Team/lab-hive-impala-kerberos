@@ -10,6 +10,14 @@ fi
 
 export HADOOP_CLIENT_OPTS="${HADOOP_CLIENT_OPTS:-} -Xmx1G ${SERVICE_OPTS:-}"
 
+if [[ -n "${KINIT_PRINCIPAL:-}" && -n "${KINIT_KEYTAB:-}" ]]; then
+  if command -v kinit >/dev/null 2>&1; then
+    kinit -k -t "${KINIT_KEYTAB}" "${KINIT_PRINCIPAL}"
+  else
+    echo "WARNING: kinit not available; continuing without shell pre-auth." >&2
+  fi
+fi
+
 # Bootstrap the schema with the stock Hive schematool when the DB is empty.
 if ! /opt/hive/bin/schematool -dbType postgres -info >/dev/null 2>&1; then
   /opt/hive/bin/schematool -dbType postgres -initSchema

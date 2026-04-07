@@ -2,7 +2,39 @@
 <configuration>
   <property>
     <name>fs.defaultFS</name>
-    <value>hdfs://namenode:8020</value>
+    <value>hdfs://namenode.hadoop.local:8020</value>
+  </property>
+  <property>
+    <name>hadoop.security.authentication</name>
+    <value>kerberos</value>
+  </property>
+  <property>
+    <name>hadoop.security.authorization</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>hadoop.rpc.protection</name>
+    <value>authentication</value>
+  </property>
+  <property>
+    <name>hadoop.security.token.service.use_ip</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>hadoop.http.filter.initializers</name>
+    <value>org.apache.hadoop.security.AuthenticationFilterInitializer</value>
+  </property>
+  <property>
+    <name>hadoop.http.authentication.type</name>
+    <value>kerberos</value>
+  </property>
+  <property>
+    <name>hadoop.http.authentication.kerberos.principal</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.http.authentication.kerberos.keytab</name>
+    <value>/keytabs/http.service.keytab</value>
   </property>
   <property>
     <name>hadoop.proxyuser.hive.hosts</name>
@@ -10,6 +42,22 @@
   </property>
   <property>
     <name>hadoop.proxyuser.hive.groups</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.root.hosts</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.root.groups</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.httpfs.hosts</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.httpfs.groups</name>
     <value>*</value>
   </property>
 </configuration>

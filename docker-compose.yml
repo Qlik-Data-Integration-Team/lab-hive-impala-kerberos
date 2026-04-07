@@ -22,6 +22,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   postgres:
     image: postgres:14
@@ -40,6 +41,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   openldap:
     image: osixia/openldap:1.5.0
@@ -62,21 +64,43 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    restart: unless-stopped
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: hb-namenode
     hostname: namenode.hadoop.local
+    depends_on:
+      kdc:
+        condition: service_healthy
     environment:
       CLUSTER_NAME: hive3-kerb
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      HDFS_CONF_dfs_replication: 1
-      HDFS_CONF_dfs_permissions_enabled: "false"
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: kdc:88
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+      - namenode-data:/hadoop/dfs/name
     ports:
       - "9870:9870"
       - "8020:8020"
-    volumes:
-      - namenode-data:/hadoop/dfs/name
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/8020) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/9870) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - namenode.hadoop.local
 
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
@@ -84,12 +108,33 @@ services:
     hostname: datanode.hadoop.local
     depends_on:
       - namenode
+      - kdc
     environment:
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      HDFS_CONF_dfs_datanode_use_datanode_hostname: "true"
-      SERVICE_PRECONDITION: namenode:9870
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode:8020
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
     volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
       - datanode-data:/hadoop/dfs/data
+    ports:
+      - "9864:9864"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/9866) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/9864) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - datanode.hadoop.local
 
   resourcemanager:
     image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
@@ -98,12 +143,32 @@ services:
     depends_on:
       - namenode
       - datanode
+      - kdc
     environment:
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      YARN_CONF_yarn_resourcemanager_hostname: resourcemanager
-      SERVICE_PRECONDITION: namenode:8020 datanode:9864
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode:8020 datanode:9866
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
     ports:
       - "8088:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/8032) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8088) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - resourcemanager.hadoop.local
 
   nodemanager:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
@@ -111,10 +176,30 @@ services:
     hostname: nodemanager.hadoop.local
     depends_on:
       - resourcemanager
+      - kdc
     environment:
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      YARN_CONF_yarn_resourcemanager_hostname: resourcemanager
-      SERVICE_PRECONDITION: resourcemanager:8088
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: resourcemanager:8088 namenode:8020
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/8042) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - nodemanager.hadoop.local
 
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
@@ -124,37 +209,278 @@ services:
       - namenode
       - datanode
       - resourcemanager
+      - kdc
     environment:
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      MAPRED_CONF_mapreduce_jobhistory_address: historyserver:10020
-      MAPRED_CONF_mapreduce_jobhistory_webapp_address: historyserver:19888
-      SERVICE_PRECONDITION: namenode:8020 datanode:9864 resourcemanager:8088
-    ports:
-      - "19888:19888"
-
-  hdfs-init:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
-    container_name: hb-hdfs-init
-    depends_on:
-      - namenode
-      - datanode
-    environment:
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode:8020 datanode:9866 resourcemanager:8088
     entrypoint:
       - /bin/bash
-      - -lc
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+    ports:
+      - "19888:8188"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/8188) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - historyserver.hadoop.local
+
+  hdfs-init:
+    build:
+      context: ./kerberos-client
+    image: hb-kerberos-client:local
+    container_name: hb-hdfs-init
+    depends_on:
+      kdc:
+        condition: service_healthy
+      namenode:
+        condition: service_started
+      datanode:
+        condition: service_started
+    environment:
+      HADOOP_CONF_DIR: /config-resources
+    command:
+      - /bin/bash
+      - -c
       - |
-        set -e
-        # Preserve the container PATH; using ${PATH} here makes Compose inject the host PATH.
-        export PATH="/opt/hadoop-3.2.1/bin:$${PATH}"
-        for i in $(seq 1 40); do
-          hdfs dfs -test -e / && break
-          echo "Waiting for HDFS..."
+        set -euo pipefail
+        kinit -k -t /keytabs/hdfs.service.keytab hdfs/namenode.hadoop.local@EXAMPLE.COM
+        for i in $(seq 1 60); do
+          hdfs dfs -ls / >/dev/null 2>&1 && break
+          echo "Waiting for secure HDFS..."
           sleep 3
         done
-        hdfs dfs -mkdir -p /user/hive/warehouse /tmp/hive
-        hdfs dfs -chmod -R 777 /user/hive /tmp/hive
-        echo "HDFS bootstrap done."
+        hdfs dfs -mkdir -p /tmp /user/hive/warehouse /user/talend /tmp/hive /tmp/tez /mr-history/tmp /mr-history/done
+        hdfs dfs -chmod 1777 /tmp /tmp/hive /tmp/tez
+        hdfs dfs -chmod -R 777 /user/hive /user/talend /mr-history
+        kdestroy
+        echo "Secure HDFS bootstrap done."
+    volumes:
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+    restart: "no"
+
+  httpfs:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hb-httpfs
+    hostname: httpfs.hadoop.local
+    depends_on:
+      hdfs-init:
+        condition: service_completed_successfully
+      kdc:
+        condition: service_healthy
+    environment:
+      CORE_CONF_fs_defaultFS: hdfs://namenode.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode:8020 datanode:9866 kdc:88
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command:
+      - /opt/hadoop-3.2.1/bin/hdfs
+      - httpfs
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hive-conf:/config-resources:ro
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+    ports:
+      - "14000:14000"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/14000) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - httpfs.hadoop.local
+
+  namenode-open:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hb-namenode-open
+    hostname: namenode-open.hadoop.local
+    environment:
+      CLUSTER_NAME: hive3-open
+      CORE_CONF_fs_defaultFS: hdfs://namenode-open.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hadoop-conf/open:/config-resources:ro
+      - namenode-open-data:/hadoop/dfs/name
+    ports:
+      - "9871:9870"
+      - "8021:8020"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/8020) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/9870) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - namenode-open.hadoop.local
+
+  datanode-open:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: hb-datanode-open
+    hostname: datanode-open.hadoop.local
+    depends_on:
+      - namenode-open
+    environment:
+      CORE_CONF_fs_defaultFS: hdfs://namenode-open.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode-open:8020
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command: ["/run.sh"]
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hadoop-conf/open:/config-resources:ro
+      - datanode-open-data:/hadoop/dfs/data
+    ports:
+      - "9865:9865"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/9866) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/9865) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - datanode-open.hadoop.local
+
+  hdfs-init-open:
+    build:
+      context: ./kerberos-client
+    image: hb-kerberos-client:local
+    container_name: hb-hdfs-init-open
+    depends_on:
+      namenode-open:
+        condition: service_started
+      datanode-open:
+        condition: service_started
+    environment:
+      HADOOP_CONF_DIR: /config-resources
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        for i in $(seq 1 40); do
+          hdfs dfs -ls / >/dev/null 2>&1 && break
+          echo "Waiting for open HDFS..."
+          sleep 3
+        done
+        hdfs dfs -mkdir -p /tmp /tmp/httpfs-open /user/admin /user/root
+        hdfs dfs -chmod -R 777 /tmp /tmp/httpfs-open /user/admin /user/root
+        echo "Open HDFS bootstrap done."
+    volumes:
+      - ./hadoop-conf/open:/config-resources:ro
+    restart: "no"
+
+  httpfs-open:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hb-httpfs-open
+    hostname: httpfs-open.hadoop.local
+    depends_on:
+      hdfs-init-open:
+        condition: service_completed_successfully
+    environment:
+      CORE_CONF_fs_defaultFS: hdfs://namenode-open.hadoop.local:8020
+      MULTIHOMED_NETWORK: "1"
+      SERVICE_PRECONDITION: namenode-open:8020 datanode-open:9865
+    entrypoint:
+      - /bin/bash
+      - /hadoop-service-entrypoint.sh
+    command:
+      - /opt/hadoop-3.2.1/bin/hdfs
+      - httpfs
+    volumes:
+      - ./scripts/hadoop-service-entrypoint.sh:/hadoop-service-entrypoint.sh:ro
+      - ./hadoop-conf/open:/config-resources:ro
+    ports:
+      - "14001:14000"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/127.0.0.1/14000) >/dev/null 2>&1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - httpfs-open.hadoop.local
+
+  tez-init:
+    build:
+      context: ./kerberos-client
+    image: hb-kerberos-client:local
+    container_name: hb-tez-init
+    depends_on:
+      hdfs-init:
+        condition: service_completed_successfully
+      resourcemanager:
+        condition: service_started
+      kdc:
+        condition: service_healthy
+    environment:
+      HADOOP_CONF_DIR: /config-resources
+    volumes:
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - ./hive-conf:/config-resources:ro
+      - shared-keytabs:/keytabs:ro
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        kinit -k -t /keytabs/hdfs.service.keytab hdfs/namenode.hadoop.local@EXAMPLE.COM
+        for i in $(seq 1 40); do
+          if hdfs dfsadmin -report 2>/dev/null | grep -Eq 'Live datanodes \([1-9][0-9]*\)'; then
+            break
+          fi
+          echo "Waiting for secure DataNode registration..."
+          sleep 3
+        done
+        rm -rf /tmp/tez-dist /tmp/tez.tar.gz
+        mkdir -p /tmp/tez-dist
+        cp -a /opt/tez/. /tmp/tez-dist/
+        rm -f /tmp/tez-dist/lib/guava-*.jar
+        rm -f /tmp/tez-dist/lib/listenablefuture-*.jar
+        rm -f /tmp/tez-dist/lib/hadoop-shaded-guava-*.jar
+        rm -f /tmp/tez-dist/lib/slf4j-log4j12-*.jar
+        rm -f /tmp/tez-dist/lib/slf4j-reload4j-*.jar
+        rm -f /tmp/tez-dist/lib/hadoop-*.jar
+        tar -czf /tmp/tez.tar.gz -C /tmp/tez-dist .
+        hdfs dfs -mkdir -p /apps/tez
+        hdfs dfs -rm -r -f /apps/tez/tez >/dev/null 2>&1 || true
+        hdfs dfs -mkdir -p /apps/tez/tez
+        hdfs dfs -put -f /tmp/tez-dist/* /apps/tez/tez/
+        hdfs dfs -put -f /tmp/tez.tar.gz /apps/tez/tez.tar.gz
+        hdfs dfs -chmod -R 755 /apps/tez/tez
+        hdfs dfs -chmod 644 /apps/tez/tez.tar.gz
+        kdestroy
     restart: "no"
 
   hive-metastore:
@@ -168,6 +494,8 @@ services:
         condition: service_healthy
       hdfs-init:
         condition: service_completed_successfully
+      kdc:
+        condition: service_healthy
     environment:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
@@ -176,19 +504,21 @@ services:
       METASTORE_DB_NAME: metastore
       METASTORE_DB_USER: hive
       METASTORE_DB_PASSWORD: hive123
+      KINIT_PRINCIPAL: hive/metastore.hadoop.local@EXAMPLE.COM
+      KINIT_KEYTAB: /keytabs/hive.service.keytab
       SERVICE_OPTS: >
         -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
         -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
         -Djavax.jdo.option.ConnectionUserName=hive
         -Djavax.jdo.option.ConnectionPassword=hive123
         -Dhive.metastore.uris=thrift://hive-metastore:9083
-        -Dhadoop.security.authentication=kerberos
-        -Dfs.defaultFS=file:///
-        -Dhive.exec.scratchdir=file:///tmp/hive
+        -Dmetastore.event.db.notification.api.auth=false
+        -Dhive.metastore.event.db.notification.api.auth=false
       HIVE_CUSTOM_CONF_DIR: /hive_custom_conf
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
-      - ./.data/warehouse:/tmp/warehouse
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
     ports:
       - "9083:9083"
     healthcheck:
@@ -196,14 +526,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    restart: unless-stopped
 
   hive-server2:
-    image: apache/hive:3.1.3
+    build:
+      context: ./hive-server
+    image: hb-hive-server:local
     container_name: hb-hive-server2
     hostname: hiveserver2.hadoop.local
     depends_on:
       hive-metastore:
         condition: service_healthy
+      tez-init:
+        condition: service_completed_successfully
       kdc:
         condition: service_healthy
     environment:
@@ -221,32 +556,37 @@ services:
     volumes:
       - ./hive-conf:/hive_custom_conf:ro
       - ./hive-conf/hive-site.hs2-kerberos.xml:/hive_custom_conf/hive-site.xml:ro
-      - ./hive-conf/core-site.kerberos.xml:/hive_custom_conf/core-site.xml:ro
       - ./datasets:/datasets:ro
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
-      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "10000:10000"
       - "10002:10002"
     entrypoint:
       - /bin/bash
-      - -lc
+      - -c
       - |
-        mkdir -p /tmp/warehouse
-        chmod 1777 /tmp/warehouse
+        set -euo pipefail
         mkdir -p /tmp/hive
         chmod 1777 /tmp/hive
+        kinit -k -t /keytabs/hive.service.keytab "hive/$(hostname -f)@EXAMPLE.COM"
         exec /entrypoint.sh
+    restart: unless-stopped
 
   hive-server2-open:
-    image: apache/hive:3.1.3
+    build:
+      context: ./hive-server
+    image: hb-hive-server:local
     container_name: hb-hive-server2-open
     hostname: hiveserver2-open.hadoop.local
     depends_on:
       hive-metastore:
         condition: service_healthy
+      tez-init:
+        condition: service_completed_successfully
       openldap:
+        condition: service_healthy
+      kdc:
         condition: service_healthy
     environment:
       SERVICE_NAME: hiveserver2
@@ -262,19 +602,21 @@ services:
       - ./hive-conf:/hive_custom_conf:ro
       - ./hive-conf/hive-site.ldap.xml:/hive_custom_conf/hive-site.xml:ro
       - ./datasets:/datasets:ro
-      - ./.data/warehouse:/tmp/warehouse
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
     ports:
       - "10001:10000"
       - "10003:10002"
     entrypoint:
       - /bin/bash
-      - -lc
+      - -c
       - |
-        mkdir -p /tmp/warehouse
-        chmod 1777 /tmp/warehouse
+        set -euo pipefail
         mkdir -p /tmp/hive
         chmod 1777 /tmp/hive
+        kinit -k -t /keytabs/hive.service.keytab "hive/$(hostname -f)@EXAMPLE.COM"
         exec /entrypoint.sh
+    restart: unless-stopped
 
   impala-statestored:
     image: apache/impala:4.5.0-statestored
@@ -295,6 +637,7 @@ services:
     volumes:
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
+    restart: unless-stopped
     networks:
       default:
         ipv4_address: 172.30.0.14
@@ -329,7 +672,7 @@ services:
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.xml:/opt/impala/conf/hive-site.xml:ro
       - shared-keytabs:/keytabs:ro
-      - ./.data/warehouse:/tmp/warehouse
+    restart: unless-stopped
     networks:
       default:
         ipv4_address: 172.30.0.16
@@ -343,8 +686,8 @@ services:
         condition: service_started
       impala-catalogd:
         condition: service_started
-      namenode:
-        condition: service_started
+      hdfs-init:
+        condition: service_completed_successfully
       kdc:
         condition: service_healthy
     entrypoint:
@@ -374,11 +717,11 @@ services:
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.xml:/opt/impala/conf/hive-site.xml:ro
       - shared-keytabs:/keytabs:ro
-      - ./.data/warehouse:/tmp/warehouse
     ports:
       - "21000:21000"
       - "21050:21050"
       - "25000:25000"
+    restart: unless-stopped
     networks:
       default:
         ipv4_address: 172.30.0.17
@@ -387,12 +730,23 @@ services:
     image: apache/impala:4.5.0-statestored
     container_name: hb-impala-statestored-open
     hostname: statestored-open.hadoop.local
+    depends_on:
+      kdc:
+        condition: service_healthy
     command:
       - /opt/impala/bin/statestored
       - -log_dir=/opt/impala/logs
       - -use_resolved_hostname=true
+      - -principal=impala/impala-statestored-open@EXAMPLE.COM
+      - -be_principal=impala/impala-statestored-open@EXAMPLE.COM
+      - -keytab_file=/keytabs/impala.service.keytab
+      - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=true
       - -skip_external_kerberos_auth=true
+    volumes:
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
+      - shared-keytabs:/keytabs:ro
+    restart: unless-stopped
 
   impala-catalogd-open:
     image: apache/impala:4.5.0-catalogd
@@ -403,6 +757,8 @@ services:
         condition: service_started
       hive-metastore:
         condition: service_started
+      kdc:
+        condition: service_healthy
     command:
       - /opt/impala/bin/catalogd
       - -log_dir=/opt/impala/logs
@@ -411,13 +767,19 @@ services:
       - -catalog_topic_mode=minimal
       - -hms_event_polling_interval_s=2
       - -use_resolved_hostname=true
+      - -principal=impala/impala-catalogd-open@EXAMPLE.COM
+      - -be_principal=impala/impala-catalogd-open@EXAMPLE.COM
+      - -keytab_file=/keytabs/impala.service.keytab
+      - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=true
       - -skip_external_kerberos_auth=true
     volumes:
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
       - ./hive-conf/core-site.xml:/opt/impala/conf/core-site.xml:ro
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.no-kerberos.xml:/opt/impala/conf/hive-site.xml:ro
-      - ./.data/warehouse:/tmp/warehouse
+      - shared-keytabs:/keytabs:ro
+    restart: unless-stopped
 
   impala-daemon-open:
     image: apache/impala:4.5.0-impalad_coord_exec
@@ -428,9 +790,11 @@ services:
         condition: service_started
       impala-catalogd-open:
         condition: service_started
-      namenode:
-        condition: service_started
+      hdfs-init:
+        condition: service_completed_successfully
       openldap:
+        condition: service_healthy
+      kdc:
         condition: service_healthy
     command:
       - /opt/impala/bin/impalad
@@ -442,6 +806,10 @@ services:
       - -mem_limit_includes_jvm=true
       - -use_local_catalog=true
       - -use_resolved_hostname=true
+      - -principal=impala/impala-open.hadoop.local@EXAMPLE.COM
+      - -be_principal=impala/impala-open.hadoop.local@EXAMPLE.COM
+      - -keytab_file=/keytabs/impala.service.keytab
+      - -spnego_keytab_file=/keytabs/http.service.keytab
       - -skip_internal_kerberos_auth=true
       - -skip_external_kerberos_auth=false
       - -enable_ldap_auth=true
@@ -450,14 +818,16 @@ services:
       - -ldap_passwords_in_clear_ok=true
       - -server_name=impalaopen
     volumes:
+      - ./conf/krb5.conf:/etc/krb5.conf:ro
       - ./hive-conf/core-site.xml:/opt/impala/conf/core-site.xml:ro
       - ./hive-conf/hdfs-site.xml:/opt/impala/conf/hdfs-site.xml:ro
       - ./hive-conf/hive-site.no-kerberos.xml:/opt/impala/conf/hive-site.xml:ro
-      - ./.data/warehouse:/tmp/warehouse
+      - shared-keytabs:/keytabs:ro
     ports:
       - "21001:21000"
       - "21051:21050"
       - "25001:25000"
+    restart: unless-stopped
 
   kerberos-client:
     build:
@@ -468,9 +838,13 @@ services:
     depends_on:
       kdc:
         condition: service_healthy
+    environment:
+      HADOOP_CONF_DIR: /config-resources
     volumes:
+      - ./hive-conf:/config-resources:ro
       - ./conf/krb5.conf:/etc/krb5.conf:ro
       - shared-keytabs:/keytabs:ro
+    restart: unless-stopped
 
   dataset-seed:
     build:
@@ -500,6 +874,8 @@ volumes:
   shared-keytabs:
   namenode-data:
   datanode-data:
+  namenode-open-data:
+  datanode-open-data:
 
 networks:
   default:
