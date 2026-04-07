@@ -32,7 +32,7 @@ STORED AS TEXTFILE;
 CREATE TABLE orders (
   order_id INT,
   customer_id INT,
-  order_date DATE,
+  order_date TIMESTAMP,
   order_status STRING,
   sales_channel STRING
 ) ROW FORMAT DELIMITED

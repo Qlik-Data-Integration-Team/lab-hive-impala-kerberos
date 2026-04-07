@@ -32,7 +32,7 @@ STORED AS TEXTFILE;
 CREATE TABLE pedidos (
   pedido_id INT,
   cliente_id INT,
-  fecha_pedido DATE,
+  fecha_pedido TIMESTAMP,
   estado_pedido STRING,
   canal_venta STRING
 ) ROW FORMAT DELIMITED
