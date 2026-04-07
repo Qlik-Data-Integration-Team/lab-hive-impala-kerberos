@@ -6,6 +6,8 @@ DEFAULT_OUTPUT_DIR="${SCRIPT_DIR}/exported-configs"
 LOCAL_KEYTAB_PATH="${SCRIPT_DIR}/talend.user.keytab"
 KDC_CONTAINER_NAME="${KDC_CONTAINER_NAME:-hb-kdc}"
 KDC_KEYTAB_PATH="${KDC_KEYTAB_PATH:-/keytabs/talend.user.keytab}"
+WAIT_ATTEMPTS="${WAIT_ATTEMPTS:-30}"
+WAIT_INTERVAL_SECONDS="${WAIT_INTERVAL_SECONDS:-2}"
 
 OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
 
@@ -50,23 +52,53 @@ container_running() {
   [[ "$running" == "true" ]]
 }
 
+wait_for_running_container() {
+  local container_name="$1"
+  local i
+
+  for ((i=1; i<=WAIT_ATTEMPTS; i++)); do
+    if container_running "$container_name"; then
+      return 0
+    fi
+    sleep "$WAIT_INTERVAL_SECONDS"
+  done
+
+  fail "container não está em execução: $container_name"
+}
+
 copy_config() {
   local container_name="$1"
   local source_path="$2"
   local target_path="$3"
+  local i
 
-  docker cp "${container_name}:${source_path}" "$target_path"
+  for ((i=1; i<=WAIT_ATTEMPTS; i++)); do
+    if docker cp "${container_name}:${source_path}" "$target_path" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$WAIT_INTERVAL_SECONDS"
+  done
+
+  fail "não foi possível copiar ${source_path} do container ${container_name}"
 }
 
 copy_keytab() {
   local target_path="$1"
+  local i
 
   if [[ -f "$LOCAL_KEYTAB_PATH" ]]; then
     cp "$LOCAL_KEYTAB_PATH" "$target_path"
-  elif container_running "$KDC_CONTAINER_NAME"; then
-    docker cp "${KDC_CONTAINER_NAME}:${KDC_KEYTAB_PATH}" "$target_path"
   else
-    fail "keytab não encontrada em ${LOCAL_KEYTAB_PATH} e container ${KDC_CONTAINER_NAME} não está em execução"
+    wait_for_running_container "$KDC_CONTAINER_NAME"
+    for ((i=1; i<=WAIT_ATTEMPTS; i++)); do
+      if docker cp "${KDC_CONTAINER_NAME}:${KDC_KEYTAB_PATH}" "$target_path" >/dev/null 2>&1; then
+        chmod 0600 "$target_path"
+        return 0
+      fi
+      sleep "$WAIT_INTERVAL_SECONDS"
+    done
+
+    fail "keytab não encontrada em ${LOCAL_KEYTAB_PATH} e não foi possível copiá-la de ${KDC_CONTAINER_NAME}:${KDC_KEYTAB_PATH}"
   fi
 
   chmod 0600 "$target_path"
@@ -90,9 +122,9 @@ export_stack() {
       ;;
   esac
 
-  container_running "$hive_container" || fail "container não está em execução: $hive_container"
-  container_running "hb-resourcemanager" || fail "container não está em execução: hb-resourcemanager"
-  container_running "hb-historyserver" || fail "container não está em execução: hb-historyserver"
+  wait_for_running_container "$hive_container"
+  wait_for_running_container "hb-resourcemanager"
+  wait_for_running_container "hb-historyserver"
 
   export_dir="${OUTPUT_DIR%/}/${stack}-${TIMESTAMP}"
   archive_path="${OUTPUT_DIR%/}/${stack}-configs-${TIMESTAMP}.tar.gz"
