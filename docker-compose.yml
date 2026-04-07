@@ -257,10 +257,16 @@ services:
         set -euo pipefail
         kinit -k -t /keytabs/hdfs.service.keytab hdfs/namenode.hadoop.local@EXAMPLE.COM
         for i in $(seq 1 60); do
-          hdfs dfs -ls / >/dev/null 2>&1 && break
+          if hdfs dfs -ls / >/dev/null 2>&1 && hdfs dfsadmin -safemode get 2>/dev/null | grep -q 'OFF'; then
+            break
+          fi
           echo "Waiting for secure HDFS..."
           sleep 3
         done
+        if ! hdfs dfsadmin -safemode get 2>/dev/null | grep -q 'OFF'; then
+          echo "Secure HDFS did not leave safe mode in time." >&2
+          exit 1
+        fi
         hdfs dfs -mkdir -p /tmp /user/hive/warehouse /user/talend /tmp/hive /tmp/tez /mr-history/tmp /mr-history/done
         hdfs dfs -chmod 1777 /tmp /tmp/hive /tmp/tez
         hdfs dfs -chmod -R 777 /user/hive /user/talend /mr-history
