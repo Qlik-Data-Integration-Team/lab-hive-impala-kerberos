@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_OUTPUT_DIR="${SCRIPT_DIR}/exported-configs"
+LOCAL_KEYTAB_PATH="${SCRIPT_DIR}/talend.user.keytab"
+KDC_CONTAINER_NAME="${KDC_CONTAINER_NAME:-hb-kdc}"
+KDC_KEYTAB_PATH="${KDC_KEYTAB_PATH:-/keytabs/talend.user.keytab}"
 
 OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
 
@@ -18,6 +21,7 @@ Descrição:
   - yarn-site.xml
   - hive-site.xml
   - mapred-site.xml
+  - talend.user.keytab
 
   Gera dois pacotes separados:
   - um .tar.gz para o stack kerberos
@@ -54,6 +58,20 @@ copy_config() {
   docker cp "${container_name}:${source_path}" "$target_path"
 }
 
+copy_keytab() {
+  local target_path="$1"
+
+  if [[ -f "$LOCAL_KEYTAB_PATH" ]]; then
+    cp "$LOCAL_KEYTAB_PATH" "$target_path"
+  elif container_running "$KDC_CONTAINER_NAME"; then
+    docker cp "${KDC_CONTAINER_NAME}:${KDC_KEYTAB_PATH}" "$target_path"
+  else
+    fail "keytab não encontrada em ${LOCAL_KEYTAB_PATH} e container ${KDC_CONTAINER_NAME} não está em execução"
+  fi
+
+  chmod 0600 "$target_path"
+}
+
 export_stack() {
   local stack="$1"
   local hive_container=""
@@ -86,13 +104,15 @@ export_stack() {
   copy_config "$hive_container" "/opt/impala/conf/hive-site.xml" "${export_dir}/hive-site.xml"
   copy_config "hb-resourcemanager" "/etc/hadoop/yarn-site.xml" "${export_dir}/yarn-site.xml"
   copy_config "hb-historyserver" "/etc/hadoop/mapred-site.xml" "${export_dir}/mapred-site.xml"
+  copy_keytab "${export_dir}/talend.user.keytab"
 
   tar -C "$export_dir" -czf "$archive_path" \
     core-site.xml \
     hdfs-site.xml \
     yarn-site.xml \
     hive-site.xml \
-    mapred-site.xml
+    mapred-site.xml \
+    talend.user.keytab
 
   log "Stack exportado: $stack"
   log "Diretório: $export_dir"
